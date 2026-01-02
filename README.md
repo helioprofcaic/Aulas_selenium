@@ -1,8 +1,18 @@
-# 🤖 Automação de Aulas e Planos de Ensino
+# 🤖 Assistente de Registro de Aulas - Portal Seduc-PI
 
-Bem-vindo ao **Assistente de Aulas**! Este projeto é uma suíte completa de automação para professores, projetada para coletar dados do portal da Seduc, gerar planos de aula inteligentes e realizar o registro automático de aulas, eliminando tarefas repetitivas.
+Bem-vindo ao **Assistente de Aulas**! Este projeto foi desenvolvido para interagir com o **Portal Seduc-PI**, facilitando o registro e o gerenciamento das aulas já ministradas ou planejadas.
+
+⚠️ **Nota sobre o Escopo:** A geração de conteúdo pedagógico **não é o objetivo** desta ferramenta.
+*   **O Professor:** Deve colocar o material pronto (resumos, roteiros) na pasta `aulas/inputs`.
+*   **Os Scripts:** Processam esses inputs e geram arquivos de texto (`.txt`) padronizados na pasta `aulas/`.
+*   **O Robô:** Lê esses arquivos `.txt` e realiza o registro automático no portal.
 
 Agora com uma **Interface Gráfica (GUI)** amigável!
+
+<div align="center">
+  <img src="docs/interface_principal.png" alt="Painel Principal" width="45%">
+  <img src="docs/interface_wizard.png" alt="Assistente de Configuração" width="45%">
+</div>
 
 ## 🚀 Configuração Inicial (Ambiente)
 
