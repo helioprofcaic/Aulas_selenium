@@ -11,7 +11,8 @@ if exist ".venv\Scripts\activate.bat" (
 echo Limpando builds anteriores...
 rmdir /s /q build
 rmdir /s /q dist
-del /q *.spec
+:: Não deletar o .spec, pois agora usamos ele para configuração
+:: del /q *.spec
 
 echo Construindo o executavel com PyInstaller...
 
@@ -26,17 +27,13 @@ if %errorlevel% neq 0 (
 echo Verificando dependencias do projeto...
 pip install .
 
-python -m PyInstaller --onefile --name "AssistenteAulas" ^
-    --hidden-import=selenium ^
-    --hidden-import=webdriver_manager ^
-    --hidden-import=webdriver_manager.chrome ^
-    --hidden-import=dateutil ^
-    --hidden-import=pyautogui ^
-    --hidden-import=cv2 ^
-    --add-data "tools;tools" ^
-    --add-data "interfaces;interfaces" ^
-    --add-data "data;data" ^
-    app.py
+if exist app.spec (
+    echo Usando arquivo de especificacao: app.spec
+    python -m PyInstaller app.spec
+) else (
+    echo ERRO: Arquivo app.spec nao encontrado!
+    exit /b 1
+)
 
 echo.
 echo Build concluido! O executavel esta em 'dist/AssistenteAulas.exe'.

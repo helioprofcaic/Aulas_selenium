@@ -80,9 +80,16 @@ def iniciar_gui():
     from interfaces.gui_app import AppAutomação
     
     root = tk.Tk()
-    # Configuração opcional de ícone, se houver
-    # try: root.iconbitmap("recursos/icone.ico")
-    # except: pass
+    root.title("Assistente de Aulas")
+
+    # Configuração do ícone da janela principal
+    try:
+        icone_path = os.path.join(get_base_path(), "recursos", "icone_app.png")
+        if os.path.exists(icone_path):
+            icon_img = tk.PhotoImage(file=icone_path)
+            root.iconphoto(True, icon_img)
+    except Exception as e:
+        print(f"Erro ao carregar ícone da janela: {e}")
     
     app = AppAutomação(root)
     root.mainloop()
