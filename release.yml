@@ -1,0 +1,42 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Dispara o workflow ao criar tags como v1.0.0, v1.0.1, etc.
+
+jobs:
+  build:
+    name: Build Executable
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .
+        pip install pyinstaller
+
+    - name: Build with PyInstaller
+      # O comando abaixo gera o executável.
+      # Nota: Se a pasta 'recursos' não existir no repositório, remova a parte '--add-data "recursos;recursos"'
+      run: |
+        pyinstaller --onefile --windowed --name "AssistenteAulas" --add-data "recursos;recursos" app.py
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: dist/AssistenteAulas.exe
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
