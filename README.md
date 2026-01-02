@@ -69,3 +69,4 @@ python app.py --cli
 *   🏗️ Arquitetura Técnica: Para desenvolvedores entenderem a estrutura do código.
 *   🤖 Detalhes do Scraper: Como funciona a coleta de dados.
 *   🛠️ **Ferramentas Secundárias**: Documentação dos utilitários de análise e gestão de conteúdo (CSV, PDFs, Relatórios).
+*   📜 **[Histórico de Mudanças (Changelog)](CHANGELOG.md)**: Detalhes das versões lançadas.

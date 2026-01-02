@@ -12,12 +12,26 @@ setup(
     py_modules=['app'],
     include_package_data=True,
     keywords=['automacao', 'selenium', 'seduc', 'professor', 'registro de aulas'],
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Education',
+        'Topic :: Education',
+        'Topic :: Office/Business :: Office Suites',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+    ],
     install_requires=[
         'selenium',
         'webdriver-manager',
         'python-dateutil',
         'pyautogui',
         'opencv-python',
+        'pandas',
+        'plotly_express',
+        'notebook',
+        'Pillow',
+        'python-dotenv',
+        'google-generativeai'
     ],
     entry_points={
         'console_scripts': [
