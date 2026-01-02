@@ -1,0 +1,13 @@
+selenium
+webdriver-manager>=4.0.0
+notebook
+pandas
+plotly_express
+nbformat
+python-dateutil
+Jinja2
+opencv-python
+pyautogui
+Pillow
+pyscreeze
+setuptools

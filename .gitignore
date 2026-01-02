@@ -1,0 +1,18 @@
+# Conteúdo sensível e dados
+aulas/*
+data/*
+!data/_modelo/
+!aulas/_modelo/
+!aulas/inputs/_modelo/
+screenshots/*
+.env
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# IDEs e arquivos temporários Python
+.idea/
+__pycache__/
+*.pyc

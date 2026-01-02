@@ -1,0 +1,11 @@
+[
+  {
+    "id_turma": "TURMA_EXEMPLO_1A",
+    "disciplina": "DISCIPLINA_EXEMPLO",
+    "data_aula": "2025-02-10",
+    "horario": "07:30 - 08:20",
+    "conteudo_registrado": "Introdução à disciplina e apresentação do plano de curso.",
+    "status": "registrado",
+    "data_registro": "2025-02-11T14:30:00"
+  }
+]

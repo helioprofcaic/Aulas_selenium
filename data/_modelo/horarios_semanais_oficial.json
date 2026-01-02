@@ -1,0 +1,15 @@
+[
+  {
+    "professores": {
+      "Nome do Professor": {
+        "turmas": {
+          "1º A": {
+            "DISCIPLINA_EXEMPLO": [
+              { "dia_semana_nome": "segunda-feira", "label_horario": "07:30 - 08:20" }
+            ]
+          }
+        }
+      }
+    }
+  }
+]
