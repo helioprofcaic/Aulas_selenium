@@ -2,6 +2,32 @@ import sys
 import os
 import runpy
 
+def get_base_path():
+    """Retorna o caminho base para persistencia de dados."""
+    if getattr(sys, 'frozen', False):
+        # Se for executavel, usa a pasta onde o .exe esta
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+# --- DEPENDÊNCIAS PARA O PYINSTALLER ---
+# Como os scripts da pasta 'tools/' são executados dinamicamente via runpy/subprocess,
+# o PyInstaller não detecta automaticamente que essas bibliotecas são necessárias.
+# Importamos aqui explicitamente (dentro de um if False para não pesar na inicialização)
+# para garantir que sejam empacotadas no executável final.
+if False:
+    import selenium
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait, Select
+    import webdriver_manager
+    from webdriver_manager.chrome import ChromeDriverManager
+    import dateutil
+    import pyautogui
+    import cv2
+# ---------------------------------------
+
 def main():
     """
     Ponto de entrada principal da aplicação (Âncora).
@@ -30,9 +56,11 @@ def main():
     # --------------------------------------------------
 
     # Garante que a raiz do projeto está no PYTHONPATH para importações funcionarem
-    raiz = os.path.dirname(os.path.abspath(__file__))
-    sys.path.append(raiz)
-    # Define o diretório de trabalho para a raiz, para que ferramentas (tools/) encontrem seus arquivos
+    # Nota: Para importacoes (sys.path), usamos a localizacao do script/temp
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Define o diretório de trabalho para a pasta do EXECUTAVEL (para dados persistentes)
+    raiz = get_base_path()
     os.chdir(raiz)
 
     # Verifica argumento de linha de comando para forçar modo texto

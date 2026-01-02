@@ -2,6 +2,7 @@
 import json
 import os
 import time
+import sys
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -538,6 +539,8 @@ if __name__ == '__main__':
     
     # O caminho raiz do projeto (assumindo que 'tools' está dentro dele)
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
     
     # Carrega credenciais de um arquivo (mais seguro do que colocar no código)
     try:

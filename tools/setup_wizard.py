@@ -4,6 +4,8 @@ import sys
 import re
 
 def get_root():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def save_json(filepath, data):
@@ -11,21 +13,16 @@ def save_json(filepath, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"  [OK] Arquivo salvo: {os.path.basename(filepath)}")
 
-def gerar_modelos_ficticios():
-    """Gera arquivos JSON com dados de exemplo na pasta data/."""
-    root = get_root()
-    data_dir = os.path.join(root, 'data')
+def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
     os.makedirs(data_dir, exist_ok=True)
-
-    print("\n--- Gerando Modelos JSON (Dados Fictícios) ---")
 
     # 1. config.json
     save_json(os.path.join(data_dir, 'config.json'), {
-        "professor": "João da Silva"
+        "professor": "Hélio Lima"
     })
 
     # 2. credentials.json
-    if not os.path.exists(os.path.join(data_dir, 'credentials.json')):
+    if sobrescrever_sensiveis or not os.path.exists(os.path.join(data_dir, 'credentials.json')):
         save_json(os.path.join(data_dir, 'credentials.json'), {
             "username": "12345678900",
             "password": "senha_secreta"
@@ -33,23 +30,31 @@ def gerar_modelos_ficticios():
 
     # 3. mapa_turmas.json (Nome Completo -> Nome Curto)
     save_json(os.path.join(data_dir, 'mapa_turmas.json'), {
-        "ESCOLA ESTADUAL EXEMPLO - 1 SERIE A": "1º A",
-        "ESCOLA ESTADUAL EXEMPLO - 2 SERIE B": "2º B"
+        "EMI-INT CT DES SIST-1ª SÉRIE -I-A": "1º DS",
+        "EMI-INT CT PROG JOGOS DIG-1ª SÉRIE-I-A": "1º PJ",
+        "ENS FUND II-9º ANO-I-B": "9º B"
     })
 
     # 4. turmas_com_disciplinas.json (Estrutura das disciplinas)
     save_json(os.path.join(data_dir, 'turmas_com_disciplinas.json'), [
         {
-            "nomeTurma": "ESCOLA ESTADUAL EXEMPLO - 1 SERIE A",
+            "nomeTurma": "EMI-INT CT DES SIST-1ª SÉRIE -I-A",
             "disciplinas": [
-                {"codigoDisciplina": "MAT", "nomeDisciplina": "Matemática"},
-                {"codigoDisciplina": "PORT", "nomeDisciplina": "Português"}
+                {"codigoDisciplina": "PENSAMENTO_COMPUTACIONAL_DES_SIST", "nomeDisciplina": "Pensamento Computacional"},
+                {"codigoDisciplina": "MENTORIAS_TEC_DES_SIST", "nomeDisciplina": "Mentorias Tecnológicas I"}
             ]
         },
         {
-            "nomeTurma": "ESCOLA ESTADUAL EXEMPLO - 2 SERIE B",
+            "nomeTurma": "EMI-INT CT PROG JOGOS DIG-1ª SÉRIE-I-A",
             "disciplinas": [
-                {"codigoDisciplina": "HIST", "nomeDisciplina": "História"}
+                {"codigoDisciplina": "PROGRAMACAO_JOGOS_II", "nomeDisciplina": "Programação de Jogos II"},
+                {"codigoDisciplina": "MENTORIAS_TEC_JOGOS", "nomeDisciplina": "Mentorias Tecnológicas I (Jogos)"}
+            ]
+        },
+        {
+            "nomeTurma": "ENS FUND II-9º ANO-I-B",
+            "disciplinas": [
+                {"codigoDisciplina": "COMPUT", "nomeDisciplina": "Computação"}
             ]
         }
     ])
@@ -58,20 +63,26 @@ def gerar_modelos_ficticios():
     save_json(os.path.join(data_dir, 'horarios_semanais_oficial.json'), [
         {
             "professores": {
-                "João da Silva": {
+                "Hélio Lima": {
                     "turmas": {
-                        "1º A": {
-                            "MAT": [
+                        "1º DS": {
+                            "PENSAMENTO_COMPUTACIONAL_DES_SIST": [
                                 {"dia_semana_nome": "segunda-feira", "label_horario": "07:30 - 08:20"},
                                 {"dia_semana_nome": "quarta-feira", "label_horario": "09:10 - 10:00"}
                             ],
-                            "PORT": [
-                                {"dia_semana_nome": "terça-feira", "label_horario": "07:30 - 08:20"}
+                            "MENTORIAS_TEC_DES_SIST": [
+                                {"dia_semana_nome": "sexta-feira", "label_horario": "10:50 - 11:40"}
                             ]
                         },
-                        "2º B": {
-                            "HIST": [
-                                {"dia_semana_nome": "sexta-feira", "label_horario": "10:00 - 10:50"}
+                        "1º PJ": {
+                            "PROGRAMACAO_JOGOS_II": [
+                                {"dia_semana_nome": "terça-feira", "label_horario": "13:20 - 14:10"},
+                                {"dia_semana_nome": "terça-feira", "label_horario": "14:10 - 15:00"}
+                            ]
+                        },
+                        "9º B": {
+                            "DISC_MENSAL": [
+                                {"dia_semana_nome": "quinta-feira", "label_horario": "07:30 - 08:20"}
                             ]
                         }
                     }
@@ -87,28 +98,63 @@ def gerar_modelos_ficticios():
         "data_fim": "12/12/2025",
         "carga_horaria_padrao_disciplina": 40,
         "disciplinas_config": {
-            "anuais": ["COMPUT", "PROJETO_VIDA"],
-            "mensais": ["DISC_MENSAL"]
+            "anuais": [
+                "PENSAMENTO_COMPUTACIONAL_DES_SIST", 
+                "MENTORIAS_TEC_DES_SIST",
+                "PROGRAMACAO_JOGOS_II",
+                "MENTORIAS_TEC_JOGOS"
+            ],
+            "mensais": ["COMPUT"]
         },
-        "restricoes_planejamento": {}
+        "restricoes_planejamento": {
+            "COMPUT": {
+                "data_inicio": "01/08/2025",
+                "data_fim": "31/08/2025"
+            }
+        }
     })
 
     # 7. feriados.json
     save_json(os.path.join(data_dir, 'feriados.json'), {
         "feriados": [
-            { "data": "24/02/2025", "descricao": "Carnaval" },
-            { "data": "25/02/2025", "descricao": "Carnaval" }
+            { "data": "03/03/2025", "descricao": "Carnaval" },
+            { "data": "04/03/2025", "descricao": "Carnaval" },
+            { "data": "18/04/2025", "descricao": "Sexta-feira Santa" }
         ]
     })
 
     # 8. .env (Configuração de Ambiente / IA)
     env_path = os.path.join(data_dir, '.env')
-    if not os.path.exists(env_path):
+    if sobrescrever_sensiveis or not os.path.exists(env_path):
         with open(env_path, 'w', encoding='utf-8') as f:
             f.write("GEMINI_API_KEY=sua_chave_aqui\n")
         print(f"  [OK] Arquivo salvo: .env")
 
+    # 9. aulas_coletadas.json (vazio por padrão)
+    if not os.path.exists(os.path.join(data_dir, 'aulas_coletadas.json')):
+        save_json(os.path.join(data_dir, 'aulas_coletadas.json'), [])
+
+    # 10. recursos_links.json (com exemplo)
+    if not os.path.exists(os.path.join(data_dir, 'recursos_links.json')):
+        save_json(os.path.join(data_dir, 'recursos_links.json'), {
+            "('1º DS', 'PENSAMENTO_COMPUTACIONAL_DES_SIST', 1)": "https://link.para.aula1.com/slide.pdf"
+        })
+
+def gerar_modelos_ficticios():
+    """Gera arquivos JSON com dados de exemplo na pasta data/."""
+    root = get_root()
+    data_dir = os.path.join(root, 'data')
+    print("\n--- Gerando Modelos JSON (Dados Fictícios) em data/ ---")
+    _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False)
     print("\n✅ Modelos gerados! Edite os arquivos em 'data/' com seus dados reais.")
+
+def gerar_espelho_modelo():
+    """Gera uma cópia dos modelos fictícios na pasta data/_modelo."""
+    root = get_root()
+    modelo_dir = os.path.join(root, 'data', '_modelo')
+    print(f"\n--- Gerando Espelho Fictício em {modelo_dir} ---")
+    _gerar_conteudo_json(modelo_dir, sobrescrever_sensiveis=True)
+    print("\n✅ Espelho de modelos gerado em data/_modelo/.")
 
 def obter_dados_disciplinas_calendario():
     """
@@ -220,7 +266,7 @@ def gerar_configuracao_via_historico(sobrescrever=None, callback_conflito=None):
 
     print("\n--- Analisando Histórico (aulas_coletadas.json) ---")
     try:
-        with open(aulas_json_path, 'r', encoding='utf-8-sig') as f:
+        with open(aulas_json_path, 'r', encoding='utf-8') as f:
             aulas = json.load(f)
     except Exception as e:
         print(f"❌ Erro ao ler JSON: {e}")
@@ -373,9 +419,9 @@ def gerar_estrutura_inputs():
     print("\n--- Gerando Estrutura de Pastas em aulas/inputs/ ---")
 
     try:
-        with open(os.path.join(data_dir, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f:
+        with open(os.path.join(data_dir, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f:
             turmas = json.load(f)
-        with open(os.path.join(data_dir, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f:
+        with open(os.path.join(data_dir, 'mapa_turmas.json'), 'r', encoding='utf-8') as f:
             mapa = json.load(f)
         
         # Tenta carregar calendário para saber quais disciplinas são anuais
@@ -428,6 +474,7 @@ def menu():
         print("2. [PASTAS] Criar pastas em aulas/inputs/ baseadas na configuração atual")
         print("3. [AUTO] Gerar configuração e pastas a partir do histórico (aulas_coletadas.json)")
         print("4. [CALENDARIO] Configurar Disciplinas (Anual/Mensal)")
+        print("5. [MODELO] Gerar espelho fictício em data/_modelo/")
         print("0. Sair")
         op = input("Escolha uma opção: ")
         if op == '1':
@@ -438,6 +485,8 @@ def menu():
             gerar_configuracao_via_historico()
         elif op == '4':
             configurar_disciplinas_calendario()
+        elif op == '5':
+            gerar_espelho_modelo()
         elif op == '0':
             break
 

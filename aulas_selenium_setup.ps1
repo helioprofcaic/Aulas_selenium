@@ -506,7 +506,7 @@ class WizardDialog:
     def __init__(self, parent, app_instance):
         self.top = tk.Toplevel(parent)
         self.top.title("🧙 Assistente de Configuração")
-        self.top.geometry("600x540")
+        self.top.geometry("600x640")
         self.app = app_instance
         
         # Importa o módulo de wizard dinamicamente
@@ -672,6 +672,7 @@ import os
 import sys
 import subprocess
 import time
+import json
 
 def limpar_tela():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -700,17 +701,33 @@ def executar_script(caminho_relativo, descricao):
     
     input("\nPressione ENTER para voltar ao menu...")
 
+def verificar_credenciais_ok():
+    raiz = obter_caminho_raiz()
+    creds_path = os.path.join(raiz, 'data', 'credentials.json')
+    if not os.path.exists(creds_path): return False
+    try:
+        with open(creds_path, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            if d.get('username') in ["12345678900", "seu_usuario", ""] or d.get('password') in ["senha_secreta", "sua_senha", ""]:
+                return False
+    except: return False
+    return True
+
 def menu_principal():
     while True:
         limpar_tela()
+        
+        aviso = "" if verificar_credenciais_ok() else " [⚠️ Configuração Pendente]"
+
         print("==========================================")
-        print("   🤖 ASSISTENTE DE AULAS - MENU PRINCIPAL")
+        print(f"   🤖 ASSISTENTE DE AULAS - MENU PRINCIPAL{aviso}")
         print("==========================================")
         print("1. [COLETAR]   Atualizar base de dados (Scraper)")
         print("2. [ANALISAR]  Verificar grade e pendências")
         print("3. [PLANEJAR]  Gerar esqueletos de planos")
         print("4. [PREENCHER] Inserir conteúdo nos planos")
         print("5. [REGISTRAR] Enviar aulas para o portal")
+        print("6. [CONFIGURAR] Assistente de Configuração (Wizard)")
         print("------------------------------------------")
         print("0. Sair")
         print("==========================================")
@@ -727,6 +744,8 @@ def menu_principal():
             executar_script(os.path.join('tools', 'preenchedor_planos.py'), "Preenchimento de Conteúdo")
         elif opcao == '5':
             executar_script(os.path.join('tools', 'registrar_aulas.py'), "Registro Automático")
+        elif opcao == '6':
+            executar_script(os.path.join('tools', 'setup_wizard.py'), "Assistente de Configuração")
         elif opcao == '0':
             print("Saindo...")
             break
@@ -745,6 +764,7 @@ $Content_Scraper = @'
 import json
 import os
 import time
+import sys
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -1281,6 +1301,8 @@ if __name__ == '__main__':
     
     # O caminho raiz do projeto (assumindo que 'tools' está dentro dele)
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
     
     # Carrega credenciais de um arquivo (mais seguro do que colocar no código)
     try:
@@ -1335,13 +1357,8 @@ def save_json(filepath, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"  [OK] Arquivo salvo: {os.path.basename(filepath)}")
 
-def gerar_modelos_ficticios():
-    """Gera arquivos JSON com dados de exemplo na pasta data/."""
-    root = get_root()
-    data_dir = os.path.join(root, 'data')
+def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
     os.makedirs(data_dir, exist_ok=True)
-
-    print("\n--- Gerando Modelos JSON (Dados Fictícios) ---")
 
     # 1. config.json
     save_json(os.path.join(data_dir, 'config.json'), {
@@ -1349,7 +1366,7 @@ def gerar_modelos_ficticios():
     })
 
     # 2. credentials.json
-    if not os.path.exists(os.path.join(data_dir, 'credentials.json')):
+    if sobrescrever_sensiveis or not os.path.exists(os.path.join(data_dir, 'credentials.json')):
         save_json(os.path.join(data_dir, 'credentials.json'), {
             "username": "12345678900",
             "password": "senha_secreta"
@@ -1411,28 +1428,63 @@ def gerar_modelos_ficticios():
         "data_fim": "12/12/2025",
         "carga_horaria_padrao_disciplina": 40,
         "disciplinas_config": {
-            "anuais": ["COMPUT", "PROJETO_VIDA"],
-            "mensais": ["DISC_MENSAL"]
+            "anuais": [
+                "PENSAMENTO_COMPUTACIONAL_DES_SIST", 
+                "MENTORIAS_TEC_DES_SIST",
+                "PROGRAMACAO_JOGOS_II",
+                "MENTORIAS_TEC_JOGOS"
+            ],
+            "mensais": ["COMPUT"]
         },
-        "restricoes_planejamento": {}
+        "restricoes_planejamento": {
+            "COMPUT": {
+                "data_inicio": "01/08/2025",
+                "data_fim": "31/08/2025"
+            }
+        }
     })
 
     # 7. feriados.json
     save_json(os.path.join(data_dir, 'feriados.json'), {
         "feriados": [
-            { "data": "24/02/2025", "descricao": "Carnaval" },
-            { "data": "25/02/2025", "descricao": "Carnaval" }
+            { "data": "03/03/2025", "descricao": "Carnaval" },
+            { "data": "04/03/2025", "descricao": "Carnaval" },
+            { "data": "18/04/2025", "descricao": "Sexta-feira Santa" }
         ]
     })
 
     # 8. .env (Configuração de Ambiente / IA)
     env_path = os.path.join(data_dir, '.env')
-    if not os.path.exists(env_path):
+    if sobrescrever_sensiveis or not os.path.exists(env_path):
         with open(env_path, 'w', encoding='utf-8') as f:
             f.write("GEMINI_API_KEY=sua_chave_aqui\n")
         print(f"  [OK] Arquivo salvo: .env")
 
+    # 9. aulas_coletadas.json (vazio por padrão)
+    if not os.path.exists(os.path.join(data_dir, 'aulas_coletadas.json')):
+        save_json(os.path.join(data_dir, 'aulas_coletadas.json'), [])
+
+    # 10. recursos_links.json (com exemplo)
+    if not os.path.exists(os.path.join(data_dir, 'recursos_links.json')):
+        save_json(os.path.join(data_dir, 'recursos_links.json'), {
+            "('1º DS', 'PENSAMENTO_COMPUTACIONAL_DES_SIST', 1)": "https://link.para.aula1.com/slide.pdf"
+        })
+
+def gerar_modelos_ficticios():
+    """Gera arquivos JSON com dados de exemplo na pasta data/."""
+    root = get_root()
+    data_dir = os.path.join(root, 'data')
+    print("\n--- Gerando Modelos JSON (Dados Fictícios) em data/ ---")
+    _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False)
     print("\n✅ Modelos gerados! Edite os arquivos em 'data/' com seus dados reais.")
+
+def gerar_espelho_modelo():
+    """Gera uma cópia dos modelos fictícios na pasta data/_modelo."""
+    root = get_root()
+    modelo_dir = os.path.join(root, 'data', '_modelo')
+    print(f"\n--- Gerando Espelho Fictício em {modelo_dir} ---")
+    _gerar_conteudo_json(modelo_dir, sobrescrever_sensiveis=True)
+    print("\n✅ Espelho de modelos gerado em data/_modelo/.")
 
 def obter_dados_disciplinas_calendario():
     """
@@ -1752,6 +1804,7 @@ def menu():
         print("2. [PASTAS] Criar pastas em aulas/inputs/ baseadas na configuração atual")
         print("3. [AUTO] Gerar configuração e pastas a partir do histórico (aulas_coletadas.json)")
         print("4. [CALENDARIO] Configurar Disciplinas (Anual/Mensal)")
+        print("5. [MODELO] Gerar espelho fictício em data/_modelo/")
         print("0. Sair")
         op = input("Escolha uma opção: ")
         if op == '1':
@@ -1762,6 +1815,8 @@ def menu():
             gerar_configuracao_via_historico()
         elif op == '4':
             configurar_disciplinas_calendario()
+        elif op == '5':
+            gerar_espelho_modelo()
         elif op == '0':
             break
 

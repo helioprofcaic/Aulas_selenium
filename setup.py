@@ -13,7 +13,8 @@ setup(
     include_package_data=True,
     install_requires=[
         'selenium',
-        'pyperclip',
+        'webdriver-manager',
+        'python-dateutil',
         'pyautogui',
         'opencv-python',
     ],

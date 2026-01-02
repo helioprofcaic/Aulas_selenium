@@ -1,5 +1,6 @@
 import os
 import json
+import sys
 from scraper import Scraper
 from preparar_planos import carregar_dados as carregar_dados_preparador, planejar_e_preparar_aulas
 from datetime import datetime
@@ -17,6 +18,8 @@ def main():
     print("Este script irá verificar o status de aulas pendentes no portal antes de planejar.\n")
 
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
     AULAS_COLETADAS_PATH = os.path.join(DATA_PATH, 'aulas_coletadas.json')
     AULAS_DIR = os.path.join(PROJECT_ROOT, 'aulas') # <-- ADICIONADO: Define o caminho para a pasta 'aulas'

@@ -167,7 +167,7 @@ class WizardDialog:
     def __init__(self, parent, app_instance):
         self.top = tk.Toplevel(parent)
         self.top.title("🧙 Assistente de Configuração")
-        self.top.geometry("600x540")
+        self.top.geometry("600x640")
         self.app = app_instance
         
         # Importa o módulo de wizard dinamicamente
