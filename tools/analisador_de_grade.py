@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -58,7 +59,10 @@ def encontrar_proxima_disciplina_a_registrar(turma_info, contagem_horas, carga_h
     return None
 
 if __name__ == "__main__":
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
 
     # 1. Carregar todos os dados

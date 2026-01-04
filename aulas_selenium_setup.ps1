@@ -452,6 +452,225 @@ Create-File (Join-Path $RootPath "aulas_selenium.bat") $Content_RunBat
 
 Create-File (Join-Path $RootPath "interfaces\__init__.py") ""
 
+$Content_GuiStats = @'
+import tkinter as tk
+from tkinter import ttk, messagebox
+import sys
+import os
+
+# Adiciona a raiz ao path para importar tools
+if getattr(sys, 'frozen', False):
+    PROJECT_ROOT = os.path.dirname(sys.executable)
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PROJECT_ROOT)
+
+from tools import ver_aulas_por_disciplina as stats_tool
+
+class StatsViewer(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("📊 Estatísticas de Aulas")
+        self.geometry("800x600")
+        self.configure(bg="#f0f4f8")
+
+        # Carregar dados
+        data_path = os.path.join(PROJECT_ROOT, 'data')
+        self.aulas, self.turmas_disciplinas, self.mapa_turmas = stats_tool.carregar_dados(data_path)
+
+        if not self.aulas:
+            messagebox.showerror("Erro", "Não foi possível carregar os dados. Execute o Scraper primeiro.")
+            self.destroy()
+            return
+
+        # Notebook (Abas)
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.criar_aba_disciplina()
+        self.criar_aba_turma()
+        self.criar_aba_data()
+
+    def criar_treeview(self, parent, colunas):
+        tree = ttk.Treeview(parent, columns=colunas, show='headings')
+        for col in colunas:
+            tree.heading(col, text=col)
+            tree.column(col, width=100)
+        
+        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscroll=scrollbar.set)
+        
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        return tree
+
+    def criar_aba_disciplina(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Por Disciplina")
+        
+        dados = stats_tool.obter_resumo_disciplina(self.aulas, self.turmas_disciplinas)
+        
+        cols = ('Código', 'Nome da Disciplina', 'Aulas Registradas')
+        tree = self.criar_treeview(frame, cols)
+        tree.column('Nome da Disciplina', width=300)
+        
+        for item in dados:
+            tree.insert('', tk.END, values=item)
+
+    def criar_aba_turma(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Por Turma")
+        
+        dados = stats_tool.obter_resumo_turma_dados(self.aulas, self.mapa_turmas)
+        
+        cols = ('Nome Curto', 'Nome Completo', 'Aulas Registradas')
+        tree = self.criar_treeview(frame, cols)
+        tree.column('Nome Completo', width=300)
+        
+        for item in dados:
+            tree.insert('', tk.END, values=item)
+
+    def criar_aba_data(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Por Data")
+        
+        dados = stats_tool.obter_resumo_data_dados(self.aulas)
+        
+        cols = ('Data', 'Aulas Registradas')
+        tree = self.criar_treeview(frame, cols)
+        
+        for data_obj, count in dados:
+            tree.insert('', tk.END, values=(data_obj.strftime('%d/%m/%Y'), count))
+'@
+Create-File (Join-Path $RootPath "interfaces\gui_stats.py") $Content_GuiStats
+
+$Content_GuiPreenchedor = @'
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext
+import sys
+import os
+import threading
+
+if getattr(sys, 'frozen', False):
+    PROJECT_ROOT = os.path.dirname(sys.executable)
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PROJECT_ROOT)
+
+from tools import preenchedor_planos as filler_tool
+
+class PreenchedorViewer(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("📝 Preenchedor de Conteúdos")
+        self.geometry("700x600")
+        self.configure(bg="#f0f4f8")
+
+        self.aulas_dir = os.path.join(PROJECT_ROOT, 'aulas')
+        self.inputs_dir = os.path.join(self.aulas_dir, 'inputs')
+        self.data_dir = os.path.join(PROJECT_ROOT, 'data')
+
+        # Carregar dados
+        self.grouped_files = filler_tool.find_plan_files(self.aulas_dir)
+        self.links_recursos = filler_tool.carregar_links_recursos(self.data_dir)
+
+        # Layout
+        top_frame = ttk.Frame(self, padding=10)
+        top_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(top_frame, text="Selecione as disciplinas para preencher:", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+
+        # Lista com Checkboxes
+        self.check_vars = {}
+        
+        canvas = tk.Canvas(top_frame, bg="#ffffff", highlightthickness=1, highlightbackground="#ccc")
+        scrollbar = ttk.Scrollbar(top_frame, orient="vertical", command=canvas.yview)
+        self.scrollable_frame = ttk.Frame(canvas)
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, pady=5)
+        scrollbar.pack(side="right", fill="y", pady=5)
+
+        if not self.grouped_files:
+            ttk.Label(self.scrollable_frame, text="Nenhum plano pendente encontrado.").pack(padx=10, pady=10)
+        else:
+            for key in sorted(self.grouped_files.keys()):
+                turma, disciplina = key
+                count = len(self.grouped_files[key])
+                var = tk.BooleanVar()
+                chk = ttk.Checkbutton(self.scrollable_frame, text=f"{turma} - {disciplina} ({count} arquivos)", variable=var)
+                chk.pack(anchor='w', padx=5, pady=2)
+                self.check_vars[key] = var
+
+        # Botões
+        btn_frame = ttk.Frame(self, padding=10)
+        btn_frame.pack(fill=tk.X)
+        
+        ttk.Button(btn_frame, text="Preencher Selecionados", command=self.iniciar_preenchimento).pack(side=tk.RIGHT)
+        ttk.Button(btn_frame, text="Selecionar Todos", command=self.selecionar_todos).pack(side=tk.LEFT)
+
+        # Log
+        log_frame = ttk.LabelFrame(self, text="Log de Processamento", padding=10)
+        log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.log_area = scrolledtext.ScrolledText(log_frame, height=10, state='disabled', font=('Consolas', 9))
+        self.log_area.pack(fill=tk.BOTH, expand=True)
+
+    def selecionar_todos(self):
+        for var in self.check_vars.values():
+            var.set(True)
+
+    def log(self, msg):
+        self.log_area.config(state='normal')
+        self.log_area.insert(tk.END, msg + "\n")
+        self.log_area.see(tk.END)
+        self.log_area.config(state='disabled')
+
+    def iniciar_preenchimento(self):
+        files_to_process = []
+        for key, var in self.check_vars.items():
+            if var.get():
+                files_to_process.extend(self.grouped_files[key])
+        
+        if not files_to_process:
+            messagebox.showwarning("Aviso", "Nenhuma disciplina selecionada.")
+            return
+
+        self.log("-" * 40)
+        self.log(f"Iniciando preenchimento de {len(files_to_process)} arquivos...")
+        
+        # Thread para não travar GUI
+        threading.Thread(target=self.processar_arquivos, args=(files_to_process,)).start()
+
+    def processar_arquivos(self, files):
+        sucessos = 0
+        falhas = 0
+        
+        for txt_path in files:
+            success, msg = filler_tool.preencher_arquivo_plano(txt_path, self.inputs_dir, self.links_recursos)
+            if success:
+                self.log(f"✅ {os.path.basename(txt_path)}: {msg}")
+                sucessos += 1
+            else:
+                self.log(f"❌ {os.path.basename(txt_path)}: {msg}")
+                falhas += 1
+        
+        self.log("-" * 40)
+        self.log(f"Concluído. Sucessos: {sucessos}, Falhas: {falhas}")
+        messagebox.showinfo("Concluído", f"Processamento finalizado.\nSucessos: {sucessos}\nFalhas: {falhas}")
+        
+        # Atualizar lista (recarregar janela seria ideal, mas vamos apenas avisar)
+        self.log("Nota: Feche e reabra esta janela para atualizar a lista de pendências.")
+'@
+Create-File (Join-Path $RootPath "interfaces\gui_preenchedor.py") $Content_GuiPreenchedor
+
 $Content_Assets = @'
 import os
 from PIL import Image, ImageTk # Requer: pip install Pillow
@@ -523,6 +742,10 @@ except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from interfaces.assets import get_icon
+    
+# Importações das novas interfaces gráficas
+from interfaces.gui_stats import StatsViewer
+from interfaces.gui_preenchedor import PreenchedorViewer
 
 
 class AppAutomação:
@@ -585,7 +808,7 @@ class AppAutomação:
         
         self.criar_botao(btn_frame, "3. Preencher Conteúdos", 
                          "Insere conteúdo nos planos.", 
-                         "preenchedor_planos.py", 2, icon_name="preenchimento")
+                         "GUI_PREENCHEDOR", 2, icon_name="preenchimento")
         
         self.criar_botao(btn_frame, "4. Registrar no Portal", 
                          "Lança as aulas no sistema.", 
@@ -622,6 +845,8 @@ class AppAutomação:
         # Botão principal ocupando toda a largura
         if script == "WIZARD":
             btn = ttk.Button(frame, text=f" {texto}", command=self.abrir_wizard, image=image, compound="left")
+        elif script == "GUI_PREENCHEDOR":
+            btn = ttk.Button(frame, text=f" {texto}", command=self.abrir_preenchedor, image=image, compound="left")
         else:
             btn = ttk.Button(frame, text=f" {texto}", command=lambda: self.iniciar_script(script), image=image, compound="left")
         
@@ -644,6 +869,9 @@ class AppAutomação:
 
     def abrir_wizard(self):
         WizardDialog(self.root, self)
+
+    def abrir_preenchedor(self):
+        PreenchedorViewer(self.root)
 
     def iniciar_script(self, script_name):
         # Executa em uma thread separada para não travar a interface
@@ -868,7 +1096,7 @@ class WizardDialog:
         tools_frame.pack(fill=tk.BOTH, expand=True)
 
         self.criar_secao(tools_frame, "Análise de Grade", "Relatório de horas registradas vs necessárias.", "Executar Analisador", lambda: self.app.iniciar_script("analisador_de_grade.py"))
-        self.criar_secao(tools_frame, "Estatísticas", "Visualizar contagem de aulas por turma/disciplina.", "Ver Estatísticas", lambda: self.app.iniciar_script("ver_aulas_por_disciplina.py"))
+        self.criar_secao(tools_frame, "Estatísticas", "Visualizar contagem de aulas por turma/disciplina.", "Ver Estatísticas", self.abrir_stats)
         self.criar_secao(tools_frame, "Conversor PDF", "Converter planos Markdown para PDF.", "Converter MD -> PDF", lambda: self.app.iniciar_script("converter_md_para_pdf.py"))
 
         frame_files = ttk.LabelFrame(tools_frame, text="Gestão de Arquivos", padding="10")
@@ -895,6 +1123,9 @@ class WizardDialog:
         frame.pack(fill=tk.X, pady=5)
         ttk.Label(frame, text=descricao, wraplength=350).pack(anchor=tk.W, pady=(0, 5))
         ttk.Button(frame, text=texto_botao, command=comando).pack(fill=tk.X)
+
+    def abrir_stats(self):
+        StatsViewer(self.top)
 
     def abrir_pasta(self, path_rel):
         raiz = self.app.obter_raiz()
@@ -1734,9 +1965,12 @@ def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
     os.makedirs(data_dir, exist_ok=True)
 
     # 1. config.json
-    save_json(os.path.join(data_dir, 'config.json'), {
-        "professor": "João da Silva"
-    })
+    config_path = os.path.join(data_dir, 'config.json')
+    # Só cria/sobrescreve se o arquivo não existir, ou se estivermos na pasta _modelo
+    if not os.path.exists(config_path) or '_modelo' in data_dir:
+        save_json(config_path, {
+            "professor": "João da Silva"
+        })
 
     # 2. credentials.json
     if sobrescrever_sensiveis or not os.path.exists(os.path.join(data_dir, 'credentials.json')):
@@ -2266,6 +2500,7 @@ Create-File (Join-Path $RootPath "tools\cortar_icones.py") $Content_CortarIcones
 $Content_VerAulas = @'
 import json
 import os
+import sys
 from collections import defaultdict
 from datetime import datetime
 
@@ -2287,12 +2522,8 @@ def carregar_dados(data_path):
         print(f"ERRO ao carregar arquivos de dados: {e}")
         return None, None, None
 
-def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
-    """Conta as aulas por disciplina e exibe um resumo."""
-    if not aulas_coletadas:
-        print("Nenhuma aula coletada para analisar.")
-        return
-
+def obter_resumo_disciplina(aulas_coletadas, turmas_disciplinas):
+    """Retorna lista de tuplas (codigo, nome, contagem) para disciplinas."""
     # 1. Criar um mapa de nome completo da disciplina para seu código curto
     mapa_disciplinas = {}
     for turma in turmas_disciplinas:
@@ -2322,6 +2553,14 @@ def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
 
     # Ordena por nome do código da disciplina para consistência
     dados_tabela.sort()
+    return dados_tabela
+
+def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
+    """Conta as aulas por disciplina e exibe um resumo."""
+    if not aulas_coletadas:
+        print("Nenhuma aula coletada para analisar.")
+        return
+    dados_tabela = obter_resumo_disciplina(aulas_coletadas, turmas_disciplinas)
 
     # 4. Exibir a tabela formatada
     print("\n--- Resumo de Aulas Registradas por Disciplina ---")
@@ -2338,12 +2577,8 @@ def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
     print("-" * len(header))
     print(f"Total de disciplinas encontradas: {len(dados_tabela)}")
 
-def ver_por_turma(aulas_coletadas, mapa_turmas):
-    """Conta as aulas por turma e exibe um resumo."""
-    if not aulas_coletadas:
-        print("Nenhuma aula coletada para analisar.")
-        return
-
+def obter_resumo_turma_dados(aulas_coletadas, mapa_turmas):
+    """Retorna lista de tuplas (nome_curto, nome_completo, contagem) para turmas."""
     contagem_turmas = defaultdict(int)
     for aula in aulas_coletadas:
         if aula.get('status') in ['Aula confirmada', 'Aguardando confirmação']:
@@ -2357,6 +2592,14 @@ def ver_por_turma(aulas_coletadas, mapa_turmas):
         dados_tabela.append((nome_curto, nome_completo, contagem))
 
     dados_tabela.sort()
+    return dados_tabela
+
+def ver_por_turma(aulas_coletadas, mapa_turmas):
+    """Conta as aulas por turma e exibe um resumo."""
+    if not aulas_coletadas:
+        print("Nenhuma aula coletada para analisar.")
+        return
+    dados_tabela = obter_resumo_turma_dados(aulas_coletadas, mapa_turmas)
 
     print("\n--- Resumo de Aulas Registradas por Turma ---")
     max_len_nome = max(len(row[1]) for row in dados_tabela) if dados_tabela else 30
@@ -2371,12 +2614,8 @@ def ver_por_turma(aulas_coletadas, mapa_turmas):
     print("-" * len(header))
     print(f"Total de turmas encontradas: {len(dados_tabela)}")
 
-def ver_por_data(aulas_coletadas):
-    """Conta as aulas por data e exibe um resumo."""
-    if not aulas_coletadas:
-        print("Nenhuma aula coletada para analisar.")
-        return
-
+def obter_resumo_data_dados(aulas_coletadas):
+    """Retorna lista de tuplas (data_obj, contagem) para datas."""
     contagem_data = defaultdict(int)
     for aula in aulas_coletadas:
         if aula.get('status') in ['Aula confirmada', 'Aguardando confirmação']:
@@ -2393,6 +2632,14 @@ def ver_por_data(aulas_coletadas):
             continue # Ignora datas mal formatadas
 
     dados_tabela.sort()
+    return dados_tabela
+
+def ver_por_data(aulas_coletadas):
+    """Conta as aulas por data e exibe um resumo."""
+    if not aulas_coletadas:
+        print("Nenhuma aula coletada para analisar.")
+        return
+    dados_tabela = obter_resumo_data_dados(aulas_coletadas)
 
     print("\n--- Resumo de Aulas Registradas por Data ---")
     header = f"{'Data':<15} | {'Aulas Registradas'}"
@@ -2412,6 +2659,14 @@ if __name__ == "__main__":
     aulas, disciplinas_map, turmas_map = carregar_dados(DATA_PATH)
 
     if aulas:
+        # Verifica se está rodando em um terminal interativo
+        if not sys.stdin.isatty():
+            print("\n[Modo não-interativo detectado - Execução via Interface Gráfica]")
+            print("Exibindo resumo geral das disciplinas...")
+            ver_por_disciplina(aulas, disciplinas_map)
+            print("\nPara ver outros relatórios (Turma/Data), execute este script via terminal (CMD).")
+            sys.exit(0)
+
         while True:
             print("\n--- Menu de Visualização ---")
             print("1. Ver por Disciplina")
@@ -2914,6 +3169,7 @@ Create-File (Join-Path $RootPath "tools\registrar_aulas.py") $Content_Registrar
 $Content_Analisador = @'
 import json
 import os
+import sys
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -3465,6 +3721,7 @@ Create-File (Join-Path $RootPath "tools\preparar_planos.py") $Content_Preparar
 $Content_Preenchedor = @'
 import os
 import re
+import sys
 import json
 import ast # Usar ast.literal_eval em vez de eval para segurança
 
@@ -3653,6 +3910,73 @@ def update_plan_file(txt_path, title, objectives, link):
     except Exception as e:
         print(f"  -> ERRO ao atualizar o arquivo '{os.path.basename(txt_path)}': {e}")
 
+def preencher_arquivo_plano(txt_path, inputs_dir, links_recursos_globais):
+    """
+    Lógica encapsulada para preencher um único arquivo de plano.
+    Retorna (sucesso: bool, mensagem: str)
+    """
+    path_parts = txt_path.split(os.sep)
+    turma_folder = path_parts[-2]
+    txt_filename = path_parts[-1]
+
+    match = re.match(r'(.+)_(\d{8})_\d{4}\.txt$', txt_filename)
+    disciplina_curto = match.group(1) if match else None
+
+    aula_num = None
+    try:
+        with open(txt_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('# Aula:'):
+                    aula_num = int(line.split(':')[1].strip())
+                    break
+    except Exception as e:
+        return False, f"Erro ao ler arquivo: {e}"
+    
+    if not disciplina_curto:
+        return False, f"Não foi possível extrair disciplina de '{txt_filename}'"
+
+    if aula_num is None:
+        return False, f"Número da aula não encontrado em '{txt_filename}'"
+
+    source_turma_folder = turma_folder
+    source_disciplina_curto = disciplina_curto
+
+    # Redirecionamentos (Hardcoded rules)
+    if turma_folder == '1_PJ' and disciplina_curto == 'MENTORIAS_TEC_JOGOS':
+        source_turma_folder = '1_DS'
+        source_disciplina_curto = 'MENTORIAS_TEC_DES_SIST'
+    if turma_folder == '1_PJ' and disciplina_curto == 'PROGRAMACAO_JOGOS_II':
+        source_disciplina_curto = 'PROGRAMACAO_JOGOS_II'
+
+    md_input_folder = os.path.join(inputs_dir, source_turma_folder, source_disciplina_curto)
+    md_filename_prefix = f"aula_{aula_num:02d}"
+    md_path = None
+    
+    if os.path.exists(md_input_folder):
+        for root, _, files in os.walk(md_input_folder):
+            if md_path: break
+            for file in files:
+                if file.startswith(md_filename_prefix) and file.endswith('.md'):
+                    md_path = os.path.join(root, file)
+                    break
+
+    chave_link = (turma_folder.replace('_', 'º '), disciplina_curto, aula_num)
+    recurso_link = links_recursos_globais.get(chave_link)
+
+    if not md_path:
+        title = disciplina_curto.replace('_', ' ').title()
+        objectives = ""
+        msg_extra = " (Sem MD, usando padrão)"
+    else:
+        title, objectives = parse_md_content(md_path)
+        msg_extra = ""
+
+    if not title:
+        return False, "Título não encontrado ou gerado."
+    
+    update_plan_file(txt_path, title, objectives, recurso_link)
+    return True, f"Preenchido{msg_extra}"
+
 if __name__ == "__main__":
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     AULAS_DIR = os.path.join(PROJECT_ROOT, 'aulas')
@@ -3673,74 +3997,11 @@ if __name__ == "__main__":
     plan_files_to_fill.sort() # Garante uma ordem consistente de processamento
 
     for txt_path in plan_files_to_fill:
-        path_parts = txt_path.split(os.sep)
-        turma_folder = path_parts[-2]
-        txt_filename = path_parts[-1]
-
-        # CORREÇÃO: Usa a regex correta que considera o horário no nome do arquivo.
-        # Isso extrai 'PROGRAMACAO_JOGOS_II' de 'PROGRAMACAO_JOGOS_II_20251114_1340.txt'.
-        match = re.match(r'(.+)_(\d{8})_\d{4}\.txt$', txt_filename)
-        disciplina_curto = match.group(1) if match else None
-
-        aula_num = None
-        with open(txt_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.startswith('# Aula:'):
-                    aula_num = int(line.split(':')[1].strip())
-                    break
-        
-        if not disciplina_curto:
-            print(f"  -> AVISO: Não foi possível extrair o nome da disciplina do arquivo '{txt_filename}'. Pulando.")
-            continue
-
-        if aula_num is None:
-            print(f"  -> AVISO: Não foi possível encontrar o número da aula em '{txt_filename}'. Pulando.")
-            continue
-
-        source_turma_folder = turma_folder
-        source_disciplina_curto = disciplina_curto
-
-        if turma_folder == '1_PJ' and disciplina_curto == 'MENTORIAS_TEC_JOGOS':
-            print(f"  -> INFO: Redirecionando para usar material de '1_DS/MENTORIAS_TEC_DES_SIST' para a turma {turma_folder}.")
-            source_turma_folder = '1_DS'
-            source_disciplina_curto = 'MENTORIAS_TEC_DES_SIST'
-
-        # CORREÇÃO: Aponta para o diretório correto onde os MDs de PJD II estão
-        if turma_folder == '1_PJ' and disciplina_curto == 'PROGRAMACAO_JOGOS_II':
-            print(f"  -> INFO: Redirecionando para usar material de 'PROGRAMACAO_DE_JOGOS_II' para a disciplina {disciplina_curto}.")
-            source_disciplina_curto = 'PROGRAMACAO_JOGOS_II'
-
-        md_input_folder = os.path.join(INPUTS_DIR, source_turma_folder, source_disciplina_curto)
-        md_filename_prefix = f"aula_{aula_num:02d}" # Ex: "aula_01"
-        md_path = None
-        
-        if os.path.exists(md_input_folder):
-            # Procura o arquivo .md da aula recursivamente
-            for root, _, files in os.walk(md_input_folder):
-                if md_path: break
-                for file in files:
-                    if file.startswith(md_filename_prefix) and file.endswith('.md'):
-                        md_path = os.path.join(root, file)
-                        break
-
-        # Lógica unificada para buscar o link do recurso
-        chave_link = (turma_folder.replace('_', 'º '), disciplina_curto, aula_num)
-        recurso_link = links_recursos_globais.get(chave_link)
-
-        title, objectives = None, None
-        if not md_path:
-            print(f"  -> AVISO: Arquivo MD correspondente a '{md_filename_prefix}' não encontrado em '{md_input_folder}' ou subpastas.")
-            # Se não há MD, usa o nome da disciplina como título e preenche mesmo assim
-            title = disciplina_curto.replace('_', ' ').title()
-            objectives = ""
+        success, msg = preencher_arquivo_plano(txt_path, INPUTS_DIR, links_recursos_globais)
+        if success:
+            print(f"  -> SUCESSO: {os.path.basename(txt_path)} - {msg}")
         else:
-            title, objectives = parse_md_content(md_path)
-
-        if not title:
-            print(f"  -> AVISO: Não foi possível extrair título do MD '{os.path.basename(md_path)}' nem usar um padrão. Pulando.")
-            continue
-        
-        update_plan_file(txt_path, title, objectives, recurso_link)
+            print(f"  -> FALHA: {os.path.basename(txt_path)} - {msg}")
 
     print("\nPreenchimento finalizado.")
 '@

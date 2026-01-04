@@ -221,7 +221,10 @@ def planejar_e_preparar_aulas(dados_carregados, aulas_coletadas, aulas_dir):
     Agora pode ser chamada por outros scripts.
     """
     turmas_disciplinas, calendario, horarios, mapa_turmas, feriados_data, config = dados_carregados
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     LOGS_DIR = os.path.join(aulas_dir, 'logs') # Diretório específico para logs
     os.makedirs(LOGS_DIR, exist_ok=True)
@@ -390,7 +393,10 @@ def planejar_e_preparar_aulas(dados_carregados, aulas_coletadas, aulas_dir):
             sys.stdout = sys.stdout.terminal
 
 if __name__ == "__main__":
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
     AULAS_DIR = os.path.join(PROJECT_ROOT, 'aulas')
 

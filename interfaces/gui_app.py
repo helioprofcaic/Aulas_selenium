@@ -15,6 +15,10 @@ except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from interfaces.assets import get_icon
+    
+# Importações das novas interfaces gráficas
+from interfaces.gui_stats import StatsViewer
+from interfaces.gui_preenchedor import PreenchedorViewer
 
 
 class AppAutomação:
@@ -77,7 +81,7 @@ class AppAutomação:
         
         self.criar_botao(btn_frame, "3. Preencher Conteúdos", 
                          "Insere conteúdo nos planos.", 
-                         "preenchedor_planos.py", 2, icon_name="preenchimento")
+                         "GUI_PREENCHEDOR", 2, icon_name="preenchimento")
         
         self.criar_botao(btn_frame, "4. Registrar no Portal", 
                          "Lança as aulas no sistema.", 
@@ -114,6 +118,8 @@ class AppAutomação:
         # Botão principal ocupando toda a largura
         if script == "WIZARD":
             btn = ttk.Button(frame, text=f" {texto}", command=self.abrir_wizard, image=image, compound="left")
+        elif script == "GUI_PREENCHEDOR":
+            btn = ttk.Button(frame, text=f" {texto}", command=self.abrir_preenchedor, image=image, compound="left")
         else:
             btn = ttk.Button(frame, text=f" {texto}", command=lambda: self.iniciar_script(script), image=image, compound="left")
         
@@ -130,10 +136,15 @@ class AppAutomação:
         self.log_area.config(state='disabled')
 
     def obter_raiz(self):
+        if getattr(sys, 'frozen', False):
+            return os.path.dirname(sys.executable)
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def abrir_wizard(self):
         WizardDialog(self.root, self)
+
+    def abrir_preenchedor(self):
+        PreenchedorViewer(self.root)
 
     def iniciar_script(self, script_name):
         # Executa em uma thread separada para não travar a interface
@@ -299,7 +310,11 @@ class WizardDialog:
         self.app = app_instance
         
         # Importa o módulo de wizard dinamicamente
-        sys.path.append(self.app.obter_raiz())
+        base_import = self.app.obter_raiz()
+        # Se congelado, o código está em _MEIPASS, mas obter_raiz retorna o local do exe
+        if getattr(sys, 'frozen', False):
+            base_import = sys._MEIPASS
+        sys.path.append(base_import)
         import tools.setup_wizard as wizard_module
         self.wizard = wizard_module
 
@@ -353,7 +368,7 @@ class WizardDialog:
         tools_frame.pack(fill=tk.BOTH, expand=True)
 
         self.criar_secao(tools_frame, "Análise de Grade", "Relatório de horas registradas vs necessárias.", "Executar Analisador", lambda: self.app.iniciar_script("analisador_de_grade.py"))
-        self.criar_secao(tools_frame, "Estatísticas", "Visualizar contagem de aulas por turma/disciplina.", "Ver Estatísticas", lambda: self.app.iniciar_script("ver_aulas_por_disciplina.py"))
+        self.criar_secao(tools_frame, "Estatísticas", "Visualizar contagem de aulas por turma/disciplina.", "Ver Estatísticas", self.abrir_stats)
         self.criar_secao(tools_frame, "Conversor PDF", "Converter planos Markdown para PDF.", "Converter MD -> PDF", lambda: self.app.iniciar_script("converter_md_para_pdf.py"))
 
         frame_files = ttk.LabelFrame(tools_frame, text="Gestão de Arquivos", padding="10")
@@ -381,6 +396,9 @@ class WizardDialog:
         ttk.Label(frame, text=descricao, wraplength=350).pack(anchor=tk.W, pady=(0, 5))
         ttk.Button(frame, text=texto_botao, command=comando).pack(fill=tk.X)
 
+    def abrir_stats(self):
+        StatsViewer(self.top)
+
     def abrir_pasta(self, path_rel):
         raiz = self.app.obter_raiz()
         path = os.path.join(raiz, path_rel)
@@ -393,6 +411,8 @@ class WizardDialog:
 
     def abrir_documento(self, filename):
         raiz = self.app.obter_raiz()
+        if getattr(sys, 'frozen', False):
+            raiz = sys._MEIPASS
         path = os.path.join(raiz, 'docs', filename)
         if not os.path.exists(path): path = os.path.join(raiz, filename)
         if os.path.exists(path):

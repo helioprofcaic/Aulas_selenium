@@ -443,7 +443,10 @@ class Logger:
         self.log.close()
 
 if __name__ == '__main__':
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
     try:
         with open(os.path.join(DATA_PATH, 'credentials.json'), 'r', encoding='utf-8-sig') as f: creds = json.load(f)

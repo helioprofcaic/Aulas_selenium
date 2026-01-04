@@ -1,16 +1,17 @@
 import json
 import os
+import sys
 from collections import defaultdict
 from datetime import datetime
 
 def carregar_dados(data_path):
     """Carrega os arquivos JSON necessários."""
     try:
-        with open(os.path.join(data_path, 'aulas_coletadas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'aulas_coletadas.json'), 'r', encoding='utf-8-sig') as f:
             aulas_coletadas = json.load(f)
-        with open(os.path.join(data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f:
             turmas_disciplinas = json.load(f)
-        with open(os.path.join(data_path, 'mapa_turmas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f:
             mapa_turmas = json.load(f)
         return aulas_coletadas, turmas_disciplinas, mapa_turmas
     except FileNotFoundError as e:
@@ -21,12 +22,8 @@ def carregar_dados(data_path):
         print(f"ERRO ao carregar arquivos de dados: {e}")
         return None, None, None
 
-def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
-    """Conta as aulas por disciplina e exibe um resumo."""
-    if not aulas_coletadas:
-        print("Nenhuma aula coletada para analisar.")
-        return
-
+def obter_resumo_disciplina(aulas_coletadas, turmas_disciplinas):
+    """Retorna lista de tuplas (codigo, nome, contagem) para disciplinas."""
     # 1. Criar um mapa de nome completo da disciplina para seu código curto
     mapa_disciplinas = {}
     for turma in turmas_disciplinas:
@@ -56,6 +53,14 @@ def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
 
     # Ordena por nome do código da disciplina para consistência
     dados_tabela.sort()
+    return dados_tabela
+
+def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
+    """Conta as aulas por disciplina e exibe um resumo."""
+    if not aulas_coletadas:
+        print("Nenhuma aula coletada para analisar.")
+        return
+    dados_tabela = obter_resumo_disciplina(aulas_coletadas, turmas_disciplinas)
 
     # 4. Exibir a tabela formatada
     print("\n--- Resumo de Aulas Registradas por Disciplina ---")
@@ -72,12 +77,8 @@ def ver_por_disciplina(aulas_coletadas, turmas_disciplinas):
     print("-" * len(header))
     print(f"Total de disciplinas encontradas: {len(dados_tabela)}")
 
-def ver_por_turma(aulas_coletadas, mapa_turmas):
-    """Conta as aulas por turma e exibe um resumo."""
-    if not aulas_coletadas:
-        print("Nenhuma aula coletada para analisar.")
-        return
-
+def obter_resumo_turma_dados(aulas_coletadas, mapa_turmas):
+    """Retorna lista de tuplas (nome_curto, nome_completo, contagem) para turmas."""
     contagem_turmas = defaultdict(int)
     for aula in aulas_coletadas:
         if aula.get('status') in ['Aula confirmada', 'Aguardando confirmação']:
@@ -91,6 +92,14 @@ def ver_por_turma(aulas_coletadas, mapa_turmas):
         dados_tabela.append((nome_curto, nome_completo, contagem))
 
     dados_tabela.sort()
+    return dados_tabela
+
+def ver_por_turma(aulas_coletadas, mapa_turmas):
+    """Conta as aulas por turma e exibe um resumo."""
+    if not aulas_coletadas:
+        print("Nenhuma aula coletada para analisar.")
+        return
+    dados_tabela = obter_resumo_turma_dados(aulas_coletadas, mapa_turmas)
 
     print("\n--- Resumo de Aulas Registradas por Turma ---")
     max_len_nome = max(len(row[1]) for row in dados_tabela) if dados_tabela else 30
@@ -105,12 +114,8 @@ def ver_por_turma(aulas_coletadas, mapa_turmas):
     print("-" * len(header))
     print(f"Total de turmas encontradas: {len(dados_tabela)}")
 
-def ver_por_data(aulas_coletadas):
-    """Conta as aulas por data e exibe um resumo."""
-    if not aulas_coletadas:
-        print("Nenhuma aula coletada para analisar.")
-        return
-
+def obter_resumo_data_dados(aulas_coletadas):
+    """Retorna lista de tuplas (data_obj, contagem) para datas."""
     contagem_data = defaultdict(int)
     for aula in aulas_coletadas:
         if aula.get('status') in ['Aula confirmada', 'Aguardando confirmação']:
@@ -127,6 +132,14 @@ def ver_por_data(aulas_coletadas):
             continue # Ignora datas mal formatadas
 
     dados_tabela.sort()
+    return dados_tabela
+
+def ver_por_data(aulas_coletadas):
+    """Conta as aulas por data e exibe um resumo."""
+    if not aulas_coletadas:
+        print("Nenhuma aula coletada para analisar.")
+        return
+    dados_tabela = obter_resumo_data_dados(aulas_coletadas)
 
     print("\n--- Resumo de Aulas Registradas por Data ---")
     header = f"{'Data':<15} | {'Aulas Registradas'}"
@@ -140,12 +153,23 @@ def ver_por_data(aulas_coletadas):
     print(f"Total de dias com aulas: {len(dados_tabela)}")
 
 if __name__ == "__main__":
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
 
     aulas, disciplinas_map, turmas_map = carregar_dados(DATA_PATH)
 
     if aulas:
+        # Verifica se está rodando em um terminal interativo
+        if not sys.stdin.isatty():
+            print("\n[Modo não-interativo detectado - Execução via Interface Gráfica]")
+            print("Exibindo resumo geral das disciplinas...")
+            ver_por_disciplina(aulas, disciplinas_map)
+            print("\nPara ver outros relatórios (Turma/Data), execute este script via terminal (CMD).")
+            sys.exit(0)
+
         while True:
             print("\n--- Menu de Visualização ---")
             print("1. Ver por Disciplina")

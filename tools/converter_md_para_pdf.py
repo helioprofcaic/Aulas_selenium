@@ -70,7 +70,10 @@ def converter_md_para_pdf(caminho_arquivo_md):
         return False
 
 if __name__ == "__main__":
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     INPUTS_DIR = os.path.join(PROJECT_ROOT, 'aulas', 'inputs')
     print(f"--- Iniciando conversão de Markdown para PDF na pasta: {INPUTS_DIR} ---")
     for root, _, files in os.walk(INPUTS_DIR):

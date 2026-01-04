@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import json
 import ast # Usar ast.literal_eval em vez de eval para segurança
 
@@ -188,8 +189,78 @@ def update_plan_file(txt_path, title, objectives, link):
     except Exception as e:
         print(f"  -> ERRO ao atualizar o arquivo '{os.path.basename(txt_path)}': {e}")
 
+def preencher_arquivo_plano(txt_path, inputs_dir, links_recursos_globais):
+    """
+    Lógica encapsulada para preencher um único arquivo de plano.
+    Retorna (sucesso: bool, mensagem: str)
+    """
+    path_parts = txt_path.split(os.sep)
+    turma_folder = path_parts[-2]
+    txt_filename = path_parts[-1]
+
+    match = re.match(r'(.+)_(\d{8})_\d{4}\.txt$', txt_filename)
+    disciplina_curto = match.group(1) if match else None
+
+    aula_num = None
+    try:
+        with open(txt_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('# Aula:'):
+                    aula_num = int(line.split(':')[1].strip())
+                    break
+    except Exception as e:
+        return False, f"Erro ao ler arquivo: {e}"
+    
+    if not disciplina_curto:
+        return False, f"Não foi possível extrair disciplina de '{txt_filename}'"
+
+    if aula_num is None:
+        return False, f"Número da aula não encontrado em '{txt_filename}'"
+
+    source_turma_folder = turma_folder
+    source_disciplina_curto = disciplina_curto
+
+    # Redirecionamentos (Hardcoded rules)
+    if turma_folder == '1_PJ' and disciplina_curto == 'MENTORIAS_TEC_JOGOS':
+        source_turma_folder = '1_DS'
+        source_disciplina_curto = 'MENTORIAS_TEC_DES_SIST'
+    if turma_folder == '1_PJ' and disciplina_curto == 'PROGRAMACAO_JOGOS_II':
+        source_disciplina_curto = 'PROGRAMACAO_JOGOS_II'
+
+    md_input_folder = os.path.join(inputs_dir, source_turma_folder, source_disciplina_curto)
+    md_filename_prefix = f"aula_{aula_num:02d}"
+    md_path = None
+    
+    if os.path.exists(md_input_folder):
+        for root, _, files in os.walk(md_input_folder):
+            if md_path: break
+            for file in files:
+                if file.startswith(md_filename_prefix) and file.endswith('.md'):
+                    md_path = os.path.join(root, file)
+                    break
+
+    chave_link = (turma_folder.replace('_', 'º '), disciplina_curto, aula_num)
+    recurso_link = links_recursos_globais.get(chave_link)
+
+    if not md_path:
+        title = disciplina_curto.replace('_', ' ').title()
+        objectives = ""
+        msg_extra = " (Sem MD, usando padrão)"
+    else:
+        title, objectives = parse_md_content(md_path)
+        msg_extra = ""
+
+    if not title:
+        return False, "Título não encontrado ou gerado."
+    
+    update_plan_file(txt_path, title, objectives, recurso_link)
+    return True, f"Preenchido{msg_extra}"
+
 if __name__ == "__main__":
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        PROJECT_ROOT = os.path.dirname(sys.executable)
+    else:
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     AULAS_DIR = os.path.join(PROJECT_ROOT, 'aulas')
     INPUTS_DIR = os.path.join(AULAS_DIR, 'inputs')
     DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
@@ -208,73 +279,10 @@ if __name__ == "__main__":
     plan_files_to_fill.sort() # Garante uma ordem consistente de processamento
 
     for txt_path in plan_files_to_fill:
-        path_parts = txt_path.split(os.sep)
-        turma_folder = path_parts[-2]
-        txt_filename = path_parts[-1]
-
-        # CORREÇÃO: Usa a regex correta que considera o horário no nome do arquivo.
-        # Isso extrai 'PROGRAMACAO_JOGOS_II' de 'PROGRAMACAO_JOGOS_II_20251114_1340.txt'.
-        match = re.match(r'(.+)_(\d{8})_\d{4}\.txt$', txt_filename)
-        disciplina_curto = match.group(1) if match else None
-
-        aula_num = None
-        with open(txt_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.startswith('# Aula:'):
-                    aula_num = int(line.split(':')[1].strip())
-                    break
-        
-        if not disciplina_curto:
-            print(f"  -> AVISO: Não foi possível extrair o nome da disciplina do arquivo '{txt_filename}'. Pulando.")
-            continue
-
-        if aula_num is None:
-            print(f"  -> AVISO: Não foi possível encontrar o número da aula em '{txt_filename}'. Pulando.")
-            continue
-
-        source_turma_folder = turma_folder
-        source_disciplina_curto = disciplina_curto
-
-        if turma_folder == '1_PJ' and disciplina_curto == 'MENTORIAS_TEC_JOGOS':
-            print(f"  -> INFO: Redirecionando para usar material de '1_DS/MENTORIAS_TEC_DES_SIST' para a turma {turma_folder}.")
-            source_turma_folder = '1_DS'
-            source_disciplina_curto = 'MENTORIAS_TEC_DES_SIST'
-
-        # CORREÇÃO: Aponta para o diretório correto onde os MDs de PJD II estão
-        if turma_folder == '1_PJ' and disciplina_curto == 'PROGRAMACAO_JOGOS_II':
-            print(f"  -> INFO: Redirecionando para usar material de 'PROGRAMACAO_DE_JOGOS_II' para a disciplina {disciplina_curto}.")
-            source_disciplina_curto = 'PROGRAMACAO_JOGOS_II'
-
-        md_input_folder = os.path.join(INPUTS_DIR, source_turma_folder, source_disciplina_curto)
-        md_filename_prefix = f"aula_{aula_num:02d}" # Ex: "aula_01"
-        md_path = None
-        
-        if os.path.exists(md_input_folder):
-            # Procura o arquivo .md da aula recursivamente
-            for root, _, files in os.walk(md_input_folder):
-                if md_path: break
-                for file in files:
-                    if file.startswith(md_filename_prefix) and file.endswith('.md'):
-                        md_path = os.path.join(root, file)
-                        break
-
-        # Lógica unificada para buscar o link do recurso
-        chave_link = (turma_folder.replace('_', 'º '), disciplina_curto, aula_num)
-        recurso_link = links_recursos_globais.get(chave_link)
-
-        title, objectives = None, None
-        if not md_path:
-            print(f"  -> AVISO: Arquivo MD correspondente a '{md_filename_prefix}' não encontrado em '{md_input_folder}' ou subpastas.")
-            # Se não há MD, usa o nome da disciplina como título e preenche mesmo assim
-            title = disciplina_curto.replace('_', ' ').title()
-            objectives = ""
+        success, msg = preencher_arquivo_plano(txt_path, INPUTS_DIR, links_recursos_globais)
+        if success:
+            print(f"  -> SUCESSO: {os.path.basename(txt_path)} - {msg}")
         else:
-            title, objectives = parse_md_content(md_path)
-
-        if not title:
-            print(f"  -> AVISO: Não foi possível extrair título do MD '{os.path.basename(md_path)}' nem usar um padrão. Pulando.")
-            continue
-        
-        update_plan_file(txt_path, title, objectives, recurso_link)
+            print(f"  -> FALHA: {os.path.basename(txt_path)} - {msg}")
 
     print("\nPreenchimento finalizado.")

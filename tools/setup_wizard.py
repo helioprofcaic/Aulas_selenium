@@ -17,9 +17,12 @@ def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
     os.makedirs(data_dir, exist_ok=True)
 
     # 1. config.json
-    save_json(os.path.join(data_dir, 'config.json'), {
-        "professor": "Hélio Lima"
-    })
+    config_path = os.path.join(data_dir, 'config.json')
+    # Só cria/sobrescreve se o arquivo não existir, ou se estivermos na pasta _modelo
+    if not os.path.exists(config_path) or '_modelo' in data_dir:
+        save_json(config_path, {
+            "professor": "João da Silva"
+        })
 
     # 2. credentials.json
     if sobrescrever_sensiveis or not os.path.exists(os.path.join(data_dir, 'credentials.json')):
@@ -132,7 +135,24 @@ def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
 
     # 9. aulas_coletadas.json (vazio por padrão)
     if not os.path.exists(os.path.join(data_dir, 'aulas_coletadas.json')):
-        save_json(os.path.join(data_dir, 'aulas_coletadas.json'), [])
+        save_json(os.path.join(data_dir, 'aulas_coletadas.json'), [
+            {
+                "dataAula": "03/02/2025",
+                "horario": "07:30 - 08:20",
+                "turma": "EMI-INT CT DES SIST-1ª SÉRIE -I-A",
+                "componenteCurricular": "Pensamento Computacional",
+                "data_cadastro": "03/02/2025",
+                "status": "Aula confirmada"
+            },
+            {
+                "dataAula": "04/02/2025",
+                "horario": "13:20 - 14:10",
+                "turma": "EMI-INT CT PROG JOGOS DIG-1ª SÉRIE-I-A",
+                "componenteCurricular": "Programação de Jogos II",
+                "data_cadastro": "04/02/2025",
+                "status": "Aula confirmada"
+            }
+        ])
 
     # 10. recursos_links.json (com exemplo)
     if not os.path.exists(os.path.join(data_dir, 'recursos_links.json')):
