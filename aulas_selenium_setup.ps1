@@ -234,12 +234,21 @@ def main():
     # O subprocess.Popen chama [exe, script.py].
     # Precisamos interceptar isso e rodar o script em vez de abrir a GUI novamente.
     if getattr(sys, 'frozen', False) and len(sys.argv) > 1 and sys.argv[1].endswith('.py'):
-        script_path = sys.argv[1]
-        # Remove o executável dos argumentos para o script
-        sys.argv = sys.argv[1:]
+        # O caminho recebido do subprocess é inválido quando congelado.
+        # Usamos apenas o nome do arquivo para encontrá-lo dentro do _MEIPASS.
+        script_name = os.path.basename(sys.argv[1])
+        script_path = os.path.join(sys._MEIPASS, 'tools', script_name)
+
+        if not os.path.exists(script_path):
+            print(f"Erro fatal: Script interno '{script_name}' não encontrado em '{os.path.join(sys._MEIPASS, 'tools')}'")
+            input("Pressione ENTER para fechar...")
+            return
+        
+        # Ajusta sys.argv para que o script executado veja seu próprio caminho como argv[0]
+        sys.argv = [script_path] + sys.argv[2:]
         
         # Garante que o diretório do script está no path (comportamento padrão do python)
-        sys.path.insert(0, os.path.dirname(os.path.abspath(script_path)))
+        sys.path.insert(0, os.path.dirname(script_path))
         
         try:
             runpy.run_path(script_path, run_name="__main__")
