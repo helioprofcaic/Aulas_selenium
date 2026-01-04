@@ -286,7 +286,7 @@ def gerar_configuracao_via_historico(sobrescrever=None, callback_conflito=None):
 
     print("\n--- Analisando Histórico (aulas_coletadas.json) ---")
     try:
-        with open(aulas_json_path, 'r', encoding='utf-8') as f:
+        with open(aulas_json_path, 'r', encoding='utf-8-sig') as f:
             aulas = json.load(f)
     except Exception as e:
         print(f"❌ Erro ao ler JSON: {e}")

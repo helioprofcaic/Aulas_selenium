@@ -1459,13 +1459,13 @@ class Scraper:
         """Carrega os arquivos de configuração necessários."""
         print(f"[Scraper] Lendo configurações de: {self.data_path}")
         try:
-            with open(os.path.join(self.data_path, 'config.json'), 'r', encoding='utf-8') as f:
+            with open(os.path.join(self.data_path, 'config.json'), 'r', encoding='utf-8-sig') as f:
                 config_data = json.load(f)
-            with open(os.path.join(self.data_path, 'horarios_semanais_oficial.json'), 'r', encoding='utf-8') as f:
+            with open(os.path.join(self.data_path, 'horarios_semanais_oficial.json'), 'r', encoding='utf-8-sig') as f:
                 horarios_data = json.load(f)
-            with open(os.path.join(self.data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f:
+            with open(os.path.join(self.data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f:
                 self.mapeamento_turmas = json.load(f)
-            with open(os.path.join(self.data_path, 'mapa_turmas.json'), 'r', encoding='utf-8') as f:
+            with open(os.path.join(self.data_path, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f:
                 mapa_turmas_data = json.load(f)
 
             # Executa a análise das aulas existentes ANTES de prosseguir
@@ -2203,7 +2203,7 @@ def gerar_configuracao_via_historico(sobrescrever=None, callback_conflito=None):
 
     print("\n--- Analisando Histórico (aulas_coletadas.json) ---")
     try:
-        with open(aulas_json_path, 'r', encoding='utf-8') as f:
+        with open(aulas_json_path, 'r', encoding='utf-8-sig') as f:
             aulas = json.load(f)
     except Exception as e:
         print(f"❌ Erro ao ler JSON: {e}")
@@ -2507,11 +2507,11 @@ from datetime import datetime
 def carregar_dados(data_path):
     """Carrega os arquivos JSON necessários."""
     try:
-        with open(os.path.join(data_path, 'aulas_coletadas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'aulas_coletadas.json'), 'r', encoding='utf-8-sig') as f:
             aulas_coletadas = json.load(f)
-        with open(os.path.join(data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f:
             turmas_disciplinas = json.load(f)
-        with open(os.path.join(data_path, 'mapa_turmas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f:
             mapa_turmas = json.load(f)
         return aulas_coletadas, turmas_disciplinas, mapa_turmas
     except FileNotFoundError as e:
@@ -3097,9 +3097,9 @@ if __name__ == '__main__':
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
     try:
-        with open(os.path.join(DATA_PATH, 'credentials.json'), 'r') as f: creds = json.load(f)
-        with open(os.path.join(DATA_PATH, 'mapa_turmas.json'), 'r', encoding='utf-8') as f: mapa_turmas = json.load(f)
-        with open(os.path.join(DATA_PATH, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f: turmas_disciplinas = json.load(f)
+        with open(os.path.join(DATA_PATH, 'credentials.json'), 'r', encoding='utf-8-sig') as f: creds = json.load(f)
+        with open(os.path.join(DATA_PATH, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f: mapa_turmas = json.load(f)
+        with open(os.path.join(DATA_PATH, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f: turmas_disciplinas = json.load(f)
     except FileNotFoundError as e:
         print(f"ERRO: Arquivo de configuração não encontrado: {e.filename}")
         exit(1)
@@ -3183,7 +3183,7 @@ def carregar_dados(data_path):
     dados = {}
     try:
         for arquivo in arquivos:
-            with open(os.path.join(data_path, arquivo), 'r', encoding='utf-8') as f:
+            with open(os.path.join(data_path, arquivo), 'r', encoding='utf-8-sig') as f:
                 # Caso especial para horarios_semanais_oficial que é uma lista
                 if arquivo == 'horarios_semanais_oficial.json':
                     dados[arquivo] = json.load(f)[0]
@@ -3333,17 +3333,17 @@ def normalizar_horario(horario_str):
 def carregar_dados(data_path):
     """Carrega todos os arquivos JSON necessários."""
     try:
-        with open(os.path.join(data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f:
             turmas_disciplinas = json.load(f)
-        with open(os.path.join(data_path, 'calendario_letivo.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'calendario_letivo.json'), 'r', encoding='utf-8-sig') as f:
             calendario = json.load(f)
-        with open(os.path.join(data_path, 'horarios_semanais_oficial.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'horarios_semanais_oficial.json'), 'r', encoding='utf-8-sig') as f:
             horarios_oficiais = json.load(f)[0]
-        with open(os.path.join(data_path, 'mapa_turmas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f:
             mapa_turmas = json.load(f)
-        with open(os.path.join(data_path, 'feriados.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'feriados.json'), 'r', encoding='utf-8-sig') as f:
             feriados_data = json.load(f)
-        with open(os.path.join(data_path, 'config.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_path, 'config.json'), 'r', encoding='utf-8-sig') as f:
             config = json.load(f)
         return turmas_disciplinas, calendario, horarios_oficiais, mapa_turmas, feriados_data, config
     except FileNotFoundError as e:
