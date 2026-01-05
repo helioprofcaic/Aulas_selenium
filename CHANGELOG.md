@@ -24,3 +24,15 @@ Primeira versão estável da ferramenta de automação para o Portal Seduc-PI.
 - Scripts modulares em `tools/`.
 - Configuração via `data/config.json` e `data/credentials.json`.
 - Suporte a empacotamento via PyInstaller.
+
+
+## [1.1.0] - 2025-01-04
+### Adicionado
+- Nova Interface Gráfica para Estatísticas (`gui_stats.py`).
+- Nova Interface Gráfica para Preenchimento de Planos (`gui_preenchedor.py`).
+- Suporte a codificação UTF-8-SIG para maior compatibilidade com Windows.
+
+### Corrigido
+- Correção de dependências ocultas no PyInstaller (`pandas`, `weasyprint`, `tinycss2`).
+- Correção no `setup_wizard.py` para não sobrescrever o nome do professor ao regenerar modelos.
+- Correção de encoding na leitura de arquivos JSON em todas as ferramentas.

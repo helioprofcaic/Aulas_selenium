@@ -76,8 +76,36 @@ foreach ($dir in $directories) {
     }
 }
 
-# 3. Gerando Arquivos do Projeto
-Write-Color "`n[3/5] Gerando arquivos do projeto..." -Color Yellow
+# 3. Download de Assets do Repositório
+Write-Color "`n[3/6] Baixando assets do repositório (imagens do README)..." -Color Yellow
+$docsPath = Join-Path $RootPath "docs"
+$repoBaseUrl = "https://raw.githubusercontent.com/helioprofcaic/Aulas_selenium/main"
+$assets = @{
+    "interface_principal.png" = "$repoBaseUrl/docs/interface_principal.png";
+    "interface_wizard.png" = "$repoBaseUrl/docs/interface_wizard.png";
+}
+
+foreach ($asset in $assets.GetEnumerator()) {
+    $fileName = $asset.Name
+    $fileUrl = $asset.Value
+    $filePath = Join-Path $docsPath $fileName
+
+    try {
+        if (-not (Test-Path $filePath)) {
+            Write-Host "  -> Baixando $fileName..."
+            # -UseBasicParsing é mais compatível com versões antigas do PowerShell
+            Invoke-WebRequest -Uri $fileUrl -OutFile $filePath -UseBasicParsing
+            Write-Color "     [+] Download de '$fileName' concluído." -Color Green
+        } else {
+            Write-Color "  [=] Imagem '$fileName' já existe." -Color DarkGray
+        }
+    } catch {
+        Write-Color "  [!] AVISO: Falha ao baixar '$fileName'. Será necessário adicioná-la manualmente na pasta 'docs'." -Color Yellow
+    }
+}
+
+# 4. Gerando Arquivos do Projeto
+Write-Color "`n[4/6] Gerando arquivos do projeto..." -Color Yellow
 
 # --- ARQUIVOS RAIZ ---
 
@@ -189,6 +217,24 @@ python app.py --cli
 '@
 Create-File (Join-Path $RootPath "README.md") $Content_Readme
 
+$Content_Changelog = @'
+# Changelog
+
+Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
+
+## [1.1.0] - 2025-01-04
+### Adicionado
+- Nova Interface Gráfica para Estatísticas (`gui_stats.py`).
+- Nova Interface Gráfica para Preenchimento de Planos (`gui_preenchedor.py`).
+- Suporte a codificação UTF-8-SIG para maior compatibilidade com Windows.
+
+### Corrigido
+- Correção de dependências ocultas no PyInstaller (`pandas`, `weasyprint`, `tinycss2`).
+- Correção no `setup_wizard.py` para não sobrescrever o nome do professor ao regenerar modelos.
+- Correção de encoding na leitura de arquivos JSON em todas as ferramentas.
+'@
+Create-File (Join-Path $RootPath "CHANGELOG.md") $Content_Changelog
+
 # --- ARQUIVOS DE INICIALIZAÇÃO E BUILD ---
 
 $Content_App = @'
@@ -208,9 +254,8 @@ def get_base_path():
 # o PyInstaller não detecta automaticamente que essas bibliotecas são necessárias.
 # Importamos aqui explicitamente (dentro de um if False para não pesar na inicialização)
 # para garantir que sejam empacotadas no executável final.
-if False:
+def _force_hidden_imports():
     import selenium
-    from selenium import webdriver
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions as EC
@@ -220,6 +265,15 @@ if False:
     import dateutil
     import pyautogui
     import cv2
+    import pandas
+    import markdown
+    import weasyprint
+    import tinycss2
+    # Submódulos específicos que o PyInstaller pode perder
+    import tinycss2.color3
+    import tinycss2.nth
+    import tinycss2.parser
+    import tinycss2.tokenizer
 # ---------------------------------------
 
 def main():
@@ -234,8 +288,6 @@ def main():
     # O subprocess.Popen chama [exe, script.py].
     # Precisamos interceptar isso e rodar o script em vez de abrir a GUI novamente.
     if getattr(sys, 'frozen', False) and len(sys.argv) > 1 and sys.argv[1].endswith('.py'):
-        # O caminho recebido do subprocess é inválido quando congelado.
-        # Usamos apenas o nome do arquivo para encontrá-lo dentro do _MEIPASS.
         script_name = os.path.basename(sys.argv[1])
         script_path = os.path.join(sys._MEIPASS, 'tools', script_name)
 
@@ -244,10 +296,8 @@ def main():
             input("Pressione ENTER para fechar...")
             return
         
-        # Ajusta sys.argv para que o script executado veja seu próprio caminho como argv[0]
         sys.argv = [script_path] + sys.argv[2:]
         
-        # Garante que o diretório do script está no path (comportamento padrão do python)
         sys.path.insert(0, os.path.dirname(script_path))
         
         try:
@@ -889,18 +939,12 @@ class AppAutomação:
 
     def executar_processo(self, script_name):
         raiz = self.obter_raiz()
-        
-        # Se estiver rodando como EXE, os scripts estão na pasta temporária interna (_MEIPASS)
-        # mas o diretório de trabalho (cwd) deve ser a pasta do executável (raiz)
-        base_scripts = sys._MEIPASS if getattr(sys, 'frozen', False) else raiz
-        
-        caminho_script = os.path.join(base_scripts, 'tools', script_name)
+        caminho_script = os.path.join(raiz, 'tools', script_name)
         
         self.log("-" * 40)
         self.log(f"Iniciando: {script_name}...")
         
         try:
-            # No Windows, precisamos configurar o startupinfo para esconder a janela do console extra
             startupinfo = None
             if os.name == 'nt':
                 startupinfo = subprocess.STARTUPINFO()
@@ -1051,7 +1095,10 @@ class WizardDialog:
         self.app = app_instance
         
         # Importa o módulo de wizard dinamicamente
-        sys.path.append(self.app.obter_raiz())
+        base_import = self.app.obter_raiz()
+        if getattr(sys, 'frozen', False):
+            base_import = sys._MEIPASS
+        sys.path.append(base_import)
         import tools.setup_wizard as wizard_module
         self.wizard = wizard_module
 
@@ -1990,23 +2037,31 @@ def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
 
     # 3. mapa_turmas.json (Nome Completo -> Nome Curto)
     save_json(os.path.join(data_dir, 'mapa_turmas.json'), {
-        "ESCOLA ESTADUAL EXEMPLO - 1 SERIE A": "1º A",
-        "ESCOLA ESTADUAL EXEMPLO - 2 SERIE B": "2º B"
+        "EMI-INT CT DES SIST-1ª SÉRIE -I-A": "1º DS",
+        "EMI-INT CT PROG JOGOS DIG-1ª SÉRIE-I-A": "1º PJ",
+        "ENS FUND II-9º ANO-I-B": "9º B"
     })
 
     # 4. turmas_com_disciplinas.json (Estrutura das disciplinas)
     save_json(os.path.join(data_dir, 'turmas_com_disciplinas.json'), [
         {
-            "nomeTurma": "ESCOLA ESTADUAL EXEMPLO - 1 SERIE A",
+            "nomeTurma": "EMI-INT CT DES SIST-1ª SÉRIE -I-A",
             "disciplinas": [
-                {"codigoDisciplina": "MAT", "nomeDisciplina": "Matemática"},
-                {"codigoDisciplina": "PORT", "nomeDisciplina": "Português"}
+                {"codigoDisciplina": "PENSAMENTO_COMPUTACIONAL_DES_SIST", "nomeDisciplina": "Pensamento Computacional"},
+                {"codigoDisciplina": "MENTORIAS_TEC_DES_SIST", "nomeDisciplina": "Mentorias Tecnológicas I"}
             ]
         },
         {
-            "nomeTurma": "ESCOLA ESTADUAL EXEMPLO - 2 SERIE B",
+            "nomeTurma": "EMI-INT CT PROG JOGOS DIG-1ª SÉRIE-I-A",
             "disciplinas": [
-                {"codigoDisciplina": "HIST", "nomeDisciplina": "História"}
+                {"codigoDisciplina": "PROGRAMACAO_JOGOS_II", "nomeDisciplina": "Programação de Jogos II"},
+                {"codigoDisciplina": "MENTORIAS_TEC_JOGOS", "nomeDisciplina": "Mentorias Tecnológicas I (Jogos)"}
+            ]
+        },
+        {
+            "nomeTurma": "ENS FUND II-9º ANO-I-B",
+            "disciplinas": [
+                {"codigoDisciplina": "COMPUT", "nomeDisciplina": "Computação"}
             ]
         }
     ])
@@ -2015,20 +2070,26 @@ def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
     save_json(os.path.join(data_dir, 'horarios_semanais_oficial.json'), [
         {
             "professores": {
-                "João da Silva": {
+                "Hélio Lima": {
                     "turmas": {
-                        "1º A": {
-                            "MAT": [
+                        "1º DS": {
+                            "PENSAMENTO_COMPUTACIONAL_DES_SIST": [
                                 {"dia_semana_nome": "segunda-feira", "label_horario": "07:30 - 08:20"},
                                 {"dia_semana_nome": "quarta-feira", "label_horario": "09:10 - 10:00"}
                             ],
-                            "PORT": [
-                                {"dia_semana_nome": "terça-feira", "label_horario": "07:30 - 08:20"}
+                            "MENTORIAS_TEC_DES_SIST": [
+                                {"dia_semana_nome": "sexta-feira", "label_horario": "10:50 - 11:40"}
                             ]
                         },
-                        "2º B": {
-                            "HIST": [
-                                {"dia_semana_nome": "sexta-feira", "label_horario": "10:00 - 10:50"}
+                        "1º PJ": {
+                            "PROGRAMACAO_JOGOS_II": [
+                                {"dia_semana_nome": "terça-feira", "label_horario": "13:20 - 14:10"},
+                                {"dia_semana_nome": "terça-feira", "label_horario": "14:10 - 15:00"}
+                            ]
+                        },
+                        "9º B": {
+                            "DISC_MENSAL": [
+                                {"dia_semana_nome": "quinta-feira", "label_horario": "07:30 - 08:20"}
                             ]
                         }
                     }
@@ -2078,7 +2139,24 @@ def _gerar_conteudo_json(data_dir, sobrescrever_sensiveis=False):
 
     # 9. aulas_coletadas.json (vazio por padrão)
     if not os.path.exists(os.path.join(data_dir, 'aulas_coletadas.json')):
-        save_json(os.path.join(data_dir, 'aulas_coletadas.json'), [])
+        save_json(os.path.join(data_dir, 'aulas_coletadas.json'), [
+            {
+                "dataAula": "03/02/2025",
+                "horario": "07:30 - 08:20",
+                "turma": "EMI-INT CT DES SIST-1ª SÉRIE -I-A",
+                "componenteCurricular": "Pensamento Computacional",
+                "data_cadastro": "03/02/2025",
+                "status": "Aula confirmada"
+            },
+            {
+                "dataAula": "04/02/2025",
+                "horario": "13:20 - 14:10",
+                "turma": "EMI-INT CT PROG JOGOS DIG-1ª SÉRIE-I-A",
+                "componenteCurricular": "Programação de Jogos II",
+                "data_cadastro": "04/02/2025",
+                "status": "Aula confirmada"
+            }
+        ])
 
     # 10. recursos_links.json (com exemplo)
     if not os.path.exists(os.path.join(data_dir, 'recursos_links.json')):
@@ -2365,9 +2443,9 @@ def gerar_estrutura_inputs():
     print("\n--- Gerando Estrutura de Pastas em aulas/inputs/ ---")
 
     try:
-        with open(os.path.join(data_dir, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_dir, 'turmas_com_disciplinas.json'), 'r', encoding='utf-8-sig') as f:
             turmas = json.load(f)
-        with open(os.path.join(data_dir, 'mapa_turmas.json'), 'r', encoding='utf-8') as f:
+        with open(os.path.join(data_dir, 'mapa_turmas.json'), 'r', encoding='utf-8-sig') as f:
             mapa = json.load(f)
         
         # Tenta carregar calendário para saber quais disciplinas são anuais
@@ -3716,10 +3794,10 @@ if __name__ == "__main__":
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
     AULAS_DIR = os.path.join(PROJECT_ROOT, 'aulas')
-
+    
     # Carrega os dados da forma tradicional
     dados_carregados = carregar_dados(DATA_PATH)
-    with open(os.path.join(DATA_PATH, 'aulas_coletadas.json'), 'r', encoding='utf-8') as f:
+    with open(os.path.join(DATA_PATH, 'aulas_coletadas.json'), 'r', encoding='utf-8-sig') as f:
         aulas_coletadas_offline = json.load(f)
     
     # Executa a lógica de planejamento
@@ -4103,6 +4181,310 @@ if __name__ == "__main__":
 '@
 Create-File (Join-Path $RootPath "tools\converter_md_para_pdf.py") $Content_ConverterMD
 
+$Content_CriarAulasEspeciais = @'
+import os
+
+# --- Configuração das Aulas Especiais ---
+# Mapeia o número da aula para o título do arquivo .md
+# Estes títulos serão usados pelo 'preenchedor_planos.py' para identificar e preencher
+# o conteúdo padrão para revisões, avaliações e atividades práticas.
+aulas_especiais = {
+    33: "# Revisão AV2",
+    34: "# Revisão AV2",
+    35: "# AV2",
+    36: "# Atividades Praticas",
+    37: "# Atividades Praticas",
+    38: "# Atividades Praticas",
+    39: "# Atividades Praticas",
+    40: "# Atividades Praticas",
+}
+
+def criar_arquivos_md_especiais():
+    """
+    Cria arquivos .md para aulas especiais (revisões, avaliações, etc.)
+    que não possuem um PDF de origem.
+    """
+    # O diretório 'resumos' é onde os arquivos de aula .md são colocados
+    # pelo script 'gerar_aulas_pdf.py'.
+    resumos_dir = os.path.join(os.path.dirname(__file__), 'S04', 'resumos')
+    os.makedirs(resumos_dir, exist_ok=True)
+    print(f"Verificando e criando arquivos de aulas especiais em: {resumos_dir}")
+
+    for numero_aula, titulo_md in aulas_especiais.items():
+        nome_arquivo = f"aula_{numero_aula:02d}.md"
+        caminho_arquivo = os.path.join(resumos_dir, nome_arquivo)
+
+        if os.path.exists(caminho_arquivo):
+            print(f"⏩ Arquivo já existe, pulando: {nome_arquivo}")
+            continue
+
+        with open(caminho_arquivo, 'w', encoding='utf-8') as f:
+            f.write(titulo_md)
+        print(f"✅ Arquivo de aula especial criado: {nome_arquivo}")
+
+if __name__ == "__main__":
+    criar_arquivos_md_especiais()
+    print("\nCriação de arquivos para aulas especiais concluída.")
+'@
+Create-File (Join-Path $RootPath "tools\criar_aulas_especiais.py") $Content_CriarAulasEspeciais
+
+$Content_UtilsFiles = @'
+import json
+import csv
+import os
+from collections import Counter
+
+
+class AnalisadorGrade:
+    """
+    Analisa os dados das aulas a partir de um arquivo JSON,
+    converte para CSV e gera um relatório de resumo.
+    """
+
+    def __init__(self, caminho_json='aulas_coletadas.json'):
+        """
+        Inicializa o analisador com o caminho para o arquivo JSON.
+
+        :param caminho_json: O caminho para o arquivo aulas_coletadas.json.
+        """
+        self.caminho_json = caminho_json
+        self.dados_aulas = self._carregar_dados()
+
+    def _carregar_dados(self):
+        """
+        Carrega os dados das aulas do arquivo JSON.
+        Retorna uma lista de dicionários ou uma lista vazia se o arquivo não for encontrado.
+        """
+        if not os.path.exists(self.caminho_json):
+            print(f"Aviso: O arquivo '{self.caminho_json}' não foi encontrado.")
+            return []
+        try:
+            with open(self.caminho_json, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Erro ao ler o arquivo JSON: {e}")
+            return []
+
+    def salvar_como_csv(self, caminho_csv='aulas_coletadas.csv'):
+        """
+        Converte os dados das aulas para o formato CSV e salva em um arquivo.
+        """
+        if not self.dados_aulas:
+            print("Não há dados para salvar.")
+            return
+
+        headers = ['data_cadastro', 'Horário (inicial ~ final)', 'Data Aula', 'Turma', 'Componente', 'Situação', 'Ações']
+        
+        # Mapeamento das chaves do JSON para os cabeçalhos do CSV
+        mapa_chaves = {
+            'data_cadastro': 'data_cadastro',
+            'horario': 'Horário (inicial ~ final)',
+            'dataAula': 'Data Aula',
+            'turma': 'Turma',
+            'componenteCurricular': 'Componente',
+            'status': 'Situação'
+        }
+
+        try:
+            with open(caminho_csv, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                for aula in self.dados_aulas:
+                    linha_csv = {header: '' for header in headers}  # Inicializa com strings vazias
+                    for chave_json, chave_csv in mapa_chaves.items():
+                        if chave_json in aula:
+                            linha_csv[chave_csv] = aula[chave_json]
+                    writer.writerow(linha_csv)
+            print(f"Dados salvos com sucesso em '{caminho_csv}'.")
+        except IOError as e:
+            print(f"Erro ao salvar o arquivo CSV: {e}")
+
+
+def main():
+    """
+    Menu principal para interagir com o analisador de grade.
+    """
+    # O caminho para o JSON agora é relativo à localização do script
+    caminho_json = os.path.join(os.path.dirname(__file__), '..', 'data', 'aulas_coletadas.json')
+    analisador = AnalisadorGrade(caminho_json)
+
+    while True:
+        print("\nMenu:")
+        print("1. Exportar para CSV")
+        print("2. Sair")
+
+        escolha = input("Escolha uma opção: ")
+
+        if escolha == '1':
+            caminho_csv = os.path.join(os.path.dirname(__file__), '..', 'data', 'aulas_coletadas.csv')
+            analisador.salvar_como_csv(caminho_csv)
+        elif escolha == '2':
+            break
+        else:
+            print("Opção inválida. Tente novamente.")
+
+
+if __name__ == '__main__':
+    main()
+'@
+Create-File (Join-Path $RootPath "tools\utils_files.py") $Content_UtilsFiles
+
+$Content_GerarAulasModelo = @'
+import os
+import sys
+
+# Configuração de caminhos para importar módulos do projeto
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+sys.path.insert(0, project_root)
+
+# Exemplo de importação da core (ajuste conforme sua estrutura real)
+# import core.gemini_utils as gemini_utils
+
+# Configuração dos arquivos de entrada (PDFs) por semana
+aulas_pdf_por_semana = {
+    "S01": {
+        "pdfs": [
+            "AULA_01_INTRODUCAO.pdf",
+            "AULA_02_CONCEITOS.pdf"
+        ]
+    },
+    "S02": {
+        "pdfs": [
+            "AULA_03_PRATICA.pdf",
+            "AULA_04_REVISAO.pdf"
+        ]
+    }
+}
+
+def main():
+    """
+    Função principal de exemplo.
+    Itera sobre as semanas e arquivos configurados para gerar conteúdo.
+    """
+    print("--- Iniciando Geração de Aulas (Modelo) ---")
+    
+    base_dir = os.path.dirname(__file__)
+    
+    for semana, dados in aulas_pdf_por_semana.items():
+        print(f"\nProcessando {semana}...")
+        dir_semana = os.path.join(base_dir, semana)
+        
+        # Aqui entraria a lógica de ler o PDF e chamar a IA
+        for pdf in dados['pdfs']:
+            print(f"  - Localizando arquivo: {os.path.join(dir_semana, pdf)}")
+
+if __name__ == "__main__":
+    main()
+'@
+Create-File (Join-Path $RootPath "tools\gerar_aulas_modelo.py") $Content_GerarAulasModelo
+
+$Content_GerarJsonRecursos = @'
+import os
+import re
+import json
+
+def parse_links_md(links_path):
+    """
+    Analisa um arquivo de links em Markdown e retorna um dicionário mapeando
+    o número da aula (int) para uma URL (string).
+    O padrão esperado é: * [Aula XX](URL)
+    """
+    links_map = {}
+    if not links_path or not os.path.exists(links_path):
+        return links_map
+
+    try:
+        with open(links_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Padrão regex para encontrar links no formato "* [Aula XX](...)"
+        pattern = re.compile(r'^\s*\*\s*\[Aula\s*(\d+)\]\((https?://[^\)]+)\)', re.MULTILINE)
+        matches = pattern.findall(content)
+        
+        for match in matches:
+            try:
+                aula_num = int(match[0])
+                url = match[1]
+                links_map[aula_num] = url
+            except (ValueError, IndexError):
+                continue
+            
+    except Exception as e:
+        print(f"  -> ERRO ao processar o arquivo de links '{os.path.basename(links_path)}': {e}")
+
+    return links_map
+
+def main():
+    """
+    Script principal para encontrar todos os arquivos de links, extrair os dados
+    e gerar o arquivo 'recursos_links.json' centralizado.
+    """
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    INPUTS_DIR = os.path.join(PROJECT_ROOT, 'aulas', 'inputs')
+    DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+    JSON_OUTPUT_PATH = os.path.join(DATA_DIR, 'recursos_links.json')
+
+    print("\n--- Gerador de JSON de Recursos de Links ---")
+
+    # Carrega o JSON existente para não sobrescrever dados manuais
+    if os.path.exists(JSON_OUTPUT_PATH):
+        with open(JSON_OUTPUT_PATH, 'r', encoding='utf-8') as f:
+            links_globais = json.load(f)
+        print(f"Arquivo existente '{JSON_OUTPUT_PATH}' carregado. {len(links_globais)} links encontrados.")
+    else:
+        links_globais = {}
+        print("Nenhum arquivo 'recursos_links.json' existente. Um novo será criado.")
+
+    links_encontrados = 0
+
+    # Navega pela estrutura de pastas: /inputs/{turma}/{disciplina}
+    for turma_folder in sorted(os.listdir(INPUTS_DIR)):
+        turma_path = os.path.join(INPUTS_DIR, turma_folder)
+        if not os.path.isdir(turma_path):
+            continue
+
+        for disciplina_folder in sorted(os.listdir(turma_path)):
+            disciplina_path = os.path.join(turma_path, disciplina_folder)
+            if not os.path.isdir(disciplina_path):
+                continue
+
+            # Procura recursivamente por arquivos de links na pasta da disciplina
+            for root, _, files in os.walk(disciplina_path):
+                for file in files:
+                    if (file.startswith('links_mod_') or file.startswith('links_S')) and file.endswith('.md'):
+                        caminho_arquivo_link = os.path.join(root, file)
+                        print(f"\nAnalisando arquivo de link: {caminho_arquivo_link}")
+                        
+                        links_extraidos = parse_links_md(caminho_arquivo_link)
+                        if not links_extraidos:
+                            print("  -> Nenhum link no formato esperado encontrado.")
+                            continue
+
+                        # Converte o nome da pasta da turma para o formato do JSON
+                        turma_curta_formatada = turma_folder.replace('_', 'º ')
+
+                        for aula_num, url in links_extraidos.items():
+                            # A chave é uma string de tupla para ser compatível com JSON
+                            chave_json = str((turma_curta_formatada, disciplina_folder, aula_num))
+                            
+                            # Adiciona ou atualiza o link no dicionário global
+                            if chave_json not in links_globais or links_globais[chave_json] != url:
+                                print(f"  -> Adicionando/Atualizando link para Aula {aula_num}")
+                                links_globais[chave_json] = url
+                                links_encontrados += 1
+
+    # Salva o dicionário atualizado de volta no arquivo JSON
+    with open(JSON_OUTPUT_PATH, 'w', encoding='utf-8') as f:
+        json.dump(links_globais, f, indent=2, ensure_ascii=False)
+
+    print(f"\nProcesso finalizado. {links_encontrados} novos links foram adicionados/atualizados.")
+    print(f"Total de {len(links_globais)} links no arquivo '{JSON_OUTPUT_PATH}'.")
+
+if __name__ == "__main__":
+    main()
+'@
+Create-File (Join-Path $RootPath "tools\gerar_json_recursos.py") $Content_GerarJsonRecursos
+
 
 # --- DOCS ---
 
@@ -4319,7 +4701,7 @@ Este guia explica o propósito e o uso de cada um.
 '@
 Create-File (Join-Path $RootPath "docs\ferramentas_secundarias.md") $Content_DocFerramentas
 
-# --- DATA MODELS (Templates) ---
+# --- DATA MODELS (Templates) --- 
 
 $Content_ConfigJson = @'
 {
@@ -4429,8 +4811,8 @@ foreach ($file in $filesToCopy) {
     }
 }
 
-# 5. Configuração do Ambiente Virtual e Dependências
-Write-Color "`n[5/5] Configurando ambiente virtual e dependências..." -Color Yellow
+# 6. Configuração do Ambiente Virtual e Dependências
+Write-Color "`n[6/6] Configurando ambiente virtual e dependências..." -Color Yellow
 
 if (-not (Test-Path (Join-Path $RootPath ".venv"))) {
     Write-Color "  [+] Criando ambiente virtual (.venv)..." -Color Cyan
